@@ -1,17 +1,33 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createAccount } from "../database-actions";
 
 const inputClass = "h-11 w-full rounded-lg border border-[#dce6e4] bg-white px-3.5 text-xs text-[#29423d] outline-none placeholder:text-[#9ba9a6] focus:border-[#2ca89c] focus:ring-3 focus:ring-[#2ca89c]/10";
 const labelClass = "mb-2 block text-xs font-bold text-[#29423d]";
 
 export default function AddAccountModal({ type }) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  const router = useRouter();
   const isTalent = type === "talent";
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
-    setOpen(false);
+    setPending(true);
+    setError("");
+    try {
+      const values=Object.fromEntries(new FormData(event.currentTarget));
+      await createAccount(type,values);
+      setOpen(false);
+      router.refresh();
+    } catch (exception) {
+      setError(exception?.message?.includes("Unique constraint") ? "A record with this email already exists." : "Unable to create the account. Please check the details.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return <>
@@ -29,7 +45,8 @@ export default function AddAccountModal({ type }) {
             {isTalent ? <><Field label="Talent type" id="talent-type"><select className={inputClass} id="talent-type" name="talentType" required defaultValue=""><option value="" disabled>Select talent type</option><option>Video Streamer</option><option>Audio Room Host</option><option>Video & Audio Host</option></select></Field><Field label="Verification status" id="verification-status"><select className={inputClass} id="verification-status" name="verificationStatus" defaultValue="Pending"><option>Pending</option><option>Under Review</option><option>Verified</option></select></Field></> : <><Field label="Account status" id="user-status"><select className={inputClass} id="user-status" name="status" defaultValue="Active"><option>Active</option><option>Pending</option><option>Suspended</option></select></Field><Field label="User type" id="user-type"><select className={inputClass} id="user-type" name="userType" defaultValue="Standard"><option>Standard</option><option>VIP User</option></select></Field></>}
           </div>
           {isTalent && <div className="mt-5"><label className={labelClass} htmlFor="talent-profile">Profile image <span className="font-normal text-[#879894]">(optional)</span></label><label htmlFor="talent-profile" className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#cbdad7] bg-[#f9fbfb] px-4 py-3.5 hover:border-[#8eb9b3]"><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#e6f3f1] text-[#28877e]"><svg className="h-5 w-5 fill-none stroke-current stroke-[1.7]" viewBox="0 0 24 24"><path d="M12 16V4m-4 4 4-4 4 4M5 14v5h14v-5"/></svg></span><span><strong className="block text-xs text-[#3f5752]">Upload profile image</strong><span className="text-[10px] text-[#879894]">PNG, JPG or WEBP</span></span><input id="talent-profile" name="profile" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" /></label></div>}
-          <div className="mt-6 flex justify-end gap-2 border-t border-[#e8efed] pt-5"><button type="button" onClick={() => setOpen(false)} className="h-10 rounded-lg border border-[#d7e3e0] px-4 text-xs font-bold text-[#5d716c] hover:bg-[#f5f8f7]">Cancel</button><button type="submit" className="h-10 rounded-lg bg-[#087f74] px-5 text-xs font-bold text-white shadow-[0_6px_16px_rgba(8,127,116,.2)] hover:bg-[#076f66]">{isTalent ? "Add talent" : "Add user"}</button></div>
+          {error && <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700" role="alert">{error}</p>}
+          <div className="mt-6 flex justify-end gap-2 border-t border-[#e8efed] pt-5"><button type="button" onClick={() => setOpen(false)} className="h-10 rounded-lg border border-[#d7e3e0] px-4 text-xs font-bold text-[#5d716c] hover:bg-[#f5f8f7]">Cancel</button><button type="submit" disabled={pending} className="h-10 rounded-lg bg-[#087f74] px-5 text-xs font-bold text-white shadow-[0_6px_16px_rgba(8,127,116,.2)] hover:bg-[#076f66] disabled:cursor-wait disabled:opacity-60">{pending ? "Saving..." : isTalent ? "Add talent" : "Add user"}</button></div>
         </form>
       </div>
     </div>}

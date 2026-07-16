@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AccountStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  BANNED
+}
+
+enum UserRole {
+  LISTENER
+  SENDER
+  CREATOR
+  HOST
+  MODERATOR
+}
+
+enum TalentType {
+  VIDEO_STREAMER
+  AUDIO_ROOM_HOST
+  VIDEO_AND_AUDIO_HOST
+}
+
+enum VerificationStatus {
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum CoinOperation {
+  ADD
+  REMOVE
+}
+
+enum BanTarget {
+  USER
+  DEVICE
+}
+
+model Admin {
+  id              String               @id @default(cuid())
+  name            String
+  email           String               @unique
+  passwordHash    String
+  role            String               @default("ADMIN")
+  active          Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  bans            Ban[]
+  coinAdjustments CoinAdjustment[]
+  verifications   TalentVerification[]
+  salaryChanges   SalaryHistory[]
+  auditLogs       AuditLog[]
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  adminId     String?
+  action      String
+  category    String
+  entityType  String?
+  entityId    String?
+  description String
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+  admin       Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([category, createdAt])
+  @@index([entityType, entityId])
+}
+
+model User {
+  id              String            @id @default(cuid())
+  publicId        String            @unique
+  name            String
+  email           String            @unique
+  phone           String?
+  country         String?
+  profileImage    String?
+  role            UserRole          @default(LISTENER)
+  status          AccountStatus     @default(ACTIVE)
+  vipLevel        Int               @default(0)
+  coinBalance     BigInt            @default(0)
+  totalSpent      BigInt            @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  lastLoginAt     DateTime?
+  devices         Device[]
+  sentGifts       GiftTransaction[]
+  bans            Ban[]
+  coinAdjustments CoinAdjustment[]
+
+  @@index([status])
+  @@index([vipLevel])
+}
+
+model Talent {
+  id                String               @id @default(cuid())
+  publicId          String               @unique
+  displayName       String
+  legalName         String
+  email             String               @unique
+  phone             String?
+  country           String?
+  profileImage      String?
+  identityCardImage String?
+  type              TalentType
+  status            AccountStatus        @default(PENDING)
+  verification      VerificationStatus   @default(PENDING)
+  coinBalance       BigInt               @default(0)
+  totalGiftsValue   BigInt               @default(0)
+  followers         Int                  @default(0)
+  liveMinutes       Int                  @default(0)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  devices           Device[]
+  receivedGifts     GiftTransaction[]
+  verifications     TalentVerification[]
+  salaryHistory     SalaryHistory[]
+  bans              Ban[]
+
+  @@index([type])
+  @@index([verification])
+}
+
+model Device {
+  id          String    @id @default(cuid())
+  userId      String?
+  talentId    String?
+  macAddress  String
+  lastLoginIp String?
+  location    String?
+  platform    String?
+  deviceName  String?
+  lastLoginAt DateTime?
+  isBanned    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  talent      Talent?   @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  bans        Ban[]
+
+  @@unique([userId, macAddress])
+  @@unique([talentId, macAddress])
+  @@index([macAddress])
+}
+
+model GiftTransaction {
+  id        String   @id @default(cuid())
+  senderId  String
+  talentId  String
+  giftName  String
+  quantity  Int      @default(1)
+  coinValue BigInt
+  roomId    String?
+  createdAt DateTime @default(now())
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Restrict)
+  talent    Talent   @relation(fields: [talentId], references: [id], onDelete: Restrict)
+
+  @@index([senderId, createdAt])
+  @@index([talentId, createdAt])
+}
+
+model CoinAdjustment {
+  id            String        @id @default(cuid())
+  userId        String
+  adminId       String
+  operation     CoinOperation
+  amount        BigInt
+  balanceBefore BigInt
+  balanceAfter  BigInt
+  reason        String
+  createdAt     DateTime      @default(now())
+  user          User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  admin         Admin         @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+}
+
+model Ban {
+  id              String    @id @default(cuid())
+  target          BanTarget
+  userId          String?
+  talentId        String?
+  deviceId        String?
+  adminId         String
+  reason          String
+  proofImage      String?
+  durationMinutes Int?
+  startsAt        DateTime  @default(now())
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  user            User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  talent          Talent?   @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  device          Device?   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  admin           Admin     @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([userId, expiresAt])
+  @@index([talentId, expiresAt])
+  @@index([deviceId, expiresAt])
+}
+
+model TalentVerification {
+  id                String             @id @default(cuid())
+  talentId          String
+  reviewedById      String?
+  status            VerificationStatus @default(PENDING)
+  identityCardFront String?
+  identityCardBack  String?
+  profileImage      String?
+  supportingFiles   Json?
+  rejectionReason   String?
+  submittedAt       DateTime           @default(now())
+  reviewedAt        DateTime?
+  talent            Talent             @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  reviewedBy        Admin?             @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, submittedAt])
+}
+
+model SalaryHistory {
+  id          String    @id @default(cuid())
+  talentId    String
+  adminId     String?
+  periodStart DateTime
+  periodEnd   DateTime
+  amount      Decimal   @db.Decimal(12, 2)
+  currency    String    @default("USD")
+  status      String    @default("PENDING")
+  notes       String?
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+  talent      Talent    @relation(fields: [talentId], references: [id], onDelete: Restrict)
+  admin       Admin?    @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([talentId, periodStart])
+}
