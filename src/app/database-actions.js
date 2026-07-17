@@ -34,12 +34,20 @@ const enumValue = (value) => {
   return normalized;
 };
 
+const normalizePhone = (value) => {
+  const phone=String(value??"").trim().replace(/[\s().-]/g,"");
+  if(!/^\+?[0-9]{7,15}$/.test(phone))throw new Error("INVALID_PHONE");
+  return phone;
+};
+
+const normalizeEmail = (value) => String(value??"").trim().toLowerCase() || null;
+
 export async function updateUserAccount(publicId, changes) {
   const admin=await requireAdmin();
   const data={};
   if(changes.name!==undefined)data.name=changes.name;
-  if(changes.email!==undefined)data.email=changes.email;
-  if(changes.phone!==undefined)data.phone=changes.phone;
+  if(changes.email!==undefined)data.email=normalizeEmail(changes.email);
+  if(changes.phone!==undefined)data.phone=normalizePhone(changes.phone);
   if(changes.country!==undefined)data.country=changes.country;
   if(changes.role!==undefined)data.role=enumValue(changes.role);
   if(changes.status!==undefined)data.status=enumValue(changes.status);
@@ -118,8 +126,12 @@ export async function createAccount(type, values) {
     const latest=await prisma.user.findMany({select:{publicId:true}});
     const next=Math.max(1049,...latest.map((item)=>Number(item.publicId.replace(/\D/g,""))||0))+1;
     const publicId=`USR-${next}`;
-    await prisma.user.create({data:{publicId,name:values.name,email:values.email,phone:values.phone,country:values.country,status:enumValue(values.status),vipLevel:values.userType==="VIP User"?1:0}});
-    await logActivity(admin,{action:"CREATE_USER",category:"USER_MANAGEMENT",entityType:"User",entityId:publicId,description:`${admin.name} created user ${values.name} (${publicId})`,metadata:{email:values.email,country:values.country}});
+    const phone=normalizePhone(values.phone);
+    const email=normalizeEmail(values.email);
+    if(await prisma.user.findUnique({where:{phone}}))throw new Error("PHONE_ALREADY_EXISTS");
+    if(email&&await prisma.user.findUnique({where:{email}}))throw new Error("EMAIL_ALREADY_EXISTS");
+    await prisma.user.create({data:{publicId,name:values.name,email,phone,country:values.country,status:enumValue(values.status),vipLevel:values.userType==="VIP User"?1:0}});
+    await logActivity(admin,{action:"CREATE_USER",category:"USER_MANAGEMENT",entityType:"User",entityId:publicId,description:`${admin.name} created user ${values.name} (${publicId})`,metadata:{phone,email,country:values.country}});
     revalidatePath("/users");
   } else {
     const latest=await prisma.talent.findMany({select:{publicId:true}});
@@ -144,4 +156,26 @@ export async function createBan({publicId,target,reason,durationMinutes,permanen
   else await prisma.user.update({where:{id:owner.id},data:{status:"BANNED"}});
   await logActivity(admin,{action:target==="DEVICE"?"BAN_DEVICE":"BAN_ACCOUNT",category:"SECURITY",entityType:isTalent?"Talent":"User",entityId:publicId,description:`${admin.name} banned the ${target.toLowerCase()} for ${isTalent?"talent":"user"} ${publicId}`,metadata:{reason,durationMinutes:minutes,permanent}});
   revalidatePath(isTalent?"/talents":"/users");
+}
+
+export async function unbanUser(publicId, reason) {
+  const admin=await requireAdmin();
+  const isTalent=publicId.startsWith("T");
+  const owner=isTalent?await prisma.talent.findUniqueOrThrow({where:{publicId}}):await prisma.user.findUniqueOrThrow({where:{publicId}});
+  const now=new Date();
+  const revoked=await prisma.$transaction(async (tx) => {
+    const result=await tx.ban.updateMany({where:{...(isTalent?{talentId:owner.id}:{userId:owner.id}),target:"USER",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:now}}]},data:{revokedAt:now}});
+    if(isTalent)await tx.talent.update({where:{id:owner.id},data:{status:"ACTIVE"}});
+    else await tx.user.update({where:{id:owner.id},data:{status:"ACTIVE"}});
+    return result.count;
+  });
+  await logActivity(admin,{action:"UNBAN_ACCOUNT",category:"SECURITY",entityType:isTalent?"Talent":"User",entityId:publicId,description:`${admin.name} restored login access for ${isTalent?"talent":"user"} ${publicId}`,metadata:{reason,revokedBans:revoked}});
+  revalidatePath(isTalent?"/talents":"/users"); revalidatePath(`/${isTalent?"talents":"users"}/${publicId}`);
+}
+
+export async function forceLogoutUser(publicId, reason) {
+  const admin=await requireAdmin();
+  const user=await prisma.user.update({where:{publicId},data:{sessionVersion:{increment:1},forcedLogoutAt:new Date()},select:{sessionVersion:true}});
+  await logActivity(admin,{action:"FORCE_LOGOUT",category:"SECURITY",entityType:"User",entityId:publicId,description:`${admin.name} forced user ${publicId} to log out of the application`,metadata:{reason,sessionVersion:user.sessionVersion}});
+  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
 }

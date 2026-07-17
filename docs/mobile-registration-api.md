@@ -11,8 +11,8 @@ Send the request with `Content-Type: application/json`. The endpoint is public a
 ```json
 {
   "name": "Aisha Khan",
-  "email": "aisha@example.com",
   "phone": "+92 300 1234567",
+  "email": "aisha@example.com",
   "country": "Pakistan",
   "profileImage": "https://cdn.example.com/profiles/aisha.jpg",
   "device": {
@@ -25,7 +25,7 @@ Send the request with `Content-Type: application/json`. The endpoint is public a
 }
 ```
 
-Only `name` and `email` are required. The complete `device` object is optional; when supplied, `device.macAddress` must contain either a MAC address or another stable device identifier.
+Only `name` and `phone` are required. Email is optional. Phone numbers and email addresses must be unique across users. The complete `device` object is optional; when supplied, `device.macAddress` must contain either a MAC address or another stable device identifier.
 
 ## React Native example
 
@@ -47,7 +47,7 @@ Use the computer's LAN address during physical-device development, for example `
 
 - `201`: user created; returns `data.user`.
 - `400`: malformed JSON.
-- `409`: email already registered.
+- `409`: phone number or email already registered.
 - `422`: validation failed; inspect `error.fields`.
 - `500`: database or server failure.
 

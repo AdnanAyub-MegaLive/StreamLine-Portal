@@ -24,7 +24,7 @@ export default function AddAccountModal({ type }) {
       setOpen(false);
       router.refresh();
     } catch (exception) {
-      setError(exception?.message?.includes("Unique constraint") ? "A record with this email already exists." : "Unable to create the account. Please check the details.");
+      setError(exception?.message?.includes("PHONE_ALREADY_EXISTS") ? "A user with this phone number already exists." : exception?.message?.includes("EMAIL_ALREADY_EXISTS") ? "A user with this email address already exists." : "Unable to create the account. Please check the details.");
     } finally {
       setPending(false);
     }
@@ -39,8 +39,8 @@ export default function AddAccountModal({ type }) {
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label={isTalent ? "Legal name" : "Full name"} id={`${type}-name`}><input className={inputClass} id={`${type}-name`} name="name" required placeholder={isTalent ? "Enter legal name" : "Enter full name"} /></Field>
             {isTalent && <Field label="Display name" id="talent-display-name"><input className={inputClass} id="talent-display-name" name="displayName" required placeholder="Public talent name" /></Field>}
-            <Field label="Email address" id={`${type}-email`}><input className={inputClass} id={`${type}-email`} name="email" type="email" required placeholder="name@example.com" /></Field>
             <Field label="Phone number" id={`${type}-phone`}><input className={inputClass} id={`${type}-phone`} name="phone" type="tel" required placeholder="+1 555 000 0000" /></Field>
+            <Field label={isTalent ? "Email address" : "Email address (optional)"} id={`${type}-email`}><input className={inputClass} id={`${type}-email`} name="email" type="email" required={isTalent} placeholder="name@example.com" /></Field>
             <Field label="Country" id={`${type}-country`}><select className={inputClass} id={`${type}-country`} name="country" required defaultValue=""><option value="" disabled>Select country</option><option>United States</option><option>United Kingdom</option><option>United Arab Emirates</option><option>Canada</option><option>Australia</option><option>Singapore</option><option>Other</option></select></Field>
             {isTalent ? <><Field label="Talent type" id="talent-type"><select className={inputClass} id="talent-type" name="talentType" required defaultValue=""><option value="" disabled>Select talent type</option><option>Video Streamer</option><option>Audio Room Host</option><option>Video & Audio Host</option></select></Field><Field label="Verification status" id="verification-status"><select className={inputClass} id="verification-status" name="verificationStatus" defaultValue="Pending"><option>Pending</option><option>Under Review</option><option>Verified</option></select></Field></> : <><Field label="Account status" id="user-status"><select className={inputClass} id="user-status" name="status" defaultValue="Active"><option>Active</option><option>Pending</option><option>Suspended</option></select></Field><Field label="User type" id="user-type"><select className={inputClass} id="user-type" name="userType" defaultValue="Standard"><option>Standard</option><option>VIP User</option></select></Field></>}
           </div>

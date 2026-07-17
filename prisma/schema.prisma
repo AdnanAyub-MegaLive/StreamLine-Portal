@@ -82,8 +82,8 @@ model User {
   id              String            @id @default(cuid())
   publicId        String            @unique
   name            String
-  email           String            @unique
-  phone           String?
+  email           String?           @unique
+  phone           String            @unique
   country         String?
   profileImage    String?
   role            UserRole          @default(LISTENER)
@@ -94,6 +94,8 @@ model User {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   lastLoginAt     DateTime?
+  sessionVersion  Int               @default(0)
+  forcedLogoutAt  DateTime?
   devices         Device[]
   sentGifts       GiftTransaction[]
   bans            Ban[]

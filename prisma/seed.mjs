@@ -45,10 +45,11 @@ async function main() {
 
   const savedUsers = {};
   for (const [publicId,name,email,phone,country,role,status,vipLevel,coinBalance,totalSpent] of users) {
+    const normalizedPhone=phone.replace(/[\s().-]/g,"");
     savedUsers[publicId] = await prisma.user.upsert({
       where: { publicId },
-      update: { name,email,phone,country,role,status,vipLevel,coinBalance,totalSpent },
-      create: { publicId,name,email,phone,country,role,status,vipLevel,coinBalance,totalSpent },
+      update: { name,email,phone:normalizedPhone,country,role,status,vipLevel,coinBalance,totalSpent },
+      create: { publicId,name,email,phone:normalizedPhone,country,role,status,vipLevel,coinBalance,totalSpent },
     });
   }
 

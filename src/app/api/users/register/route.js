@@ -14,10 +14,11 @@ function validateRegistration(body) {
   const errors = {};
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  const phone = typeof body?.phone === "string" ? body.phone.trim().replace(/[\s().-]/g, "") : "";
 
   if (name.length < 2 || name.length > 100) errors.name = "Name must contain 2 to 100 characters.";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) errors.email = "Enter a valid email address.";
-  if (body?.phone != null && (typeof body.phone !== "string" || body.phone.trim().length > 30)) errors.phone = "Phone must contain no more than 30 characters.";
+  if (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)) errors.email = "Enter a valid email address.";
+  if (!/^\+?[0-9]{7,15}$/.test(phone)) errors.phone = "Enter a valid phone number containing 7 to 15 digits.";
   if (body?.country != null && (typeof body.country !== "string" || body.country.trim().length > 100)) errors.country = "Country must contain no more than 100 characters.";
   if (body?.profileImage != null && (typeof body.profileImage !== "string" || body.profileImage.length > 2048)) errors.profileImage = "Profile image must be a URL no longer than 2048 characters.";
 
@@ -25,7 +26,7 @@ function validateRegistration(body) {
   if (device != null && (typeof device !== "object" || Array.isArray(device))) errors.device = "Device must be an object.";
   if (device && (typeof device.macAddress !== "string" || !device.macAddress.trim())) errors["device.macAddress"] = "MAC address or a stable device identifier is required when device information is supplied.";
 
-  return { errors, values: { name, email } };
+  return { errors, values: { name, email: email || null, phone } };
 }
 
 export function OPTIONS() {
@@ -56,7 +57,7 @@ export async function POST(request) {
           publicId,
           name: values.name,
           email: values.email,
-          phone: cleanOptional(body.phone),
+          phone: values.phone,
           country: cleanOptional(body.country),
           profileImage: cleanOptional(body.profileImage),
           role: "LISTENER",
@@ -82,7 +83,7 @@ export async function POST(request) {
           entityId: created.publicId,
           description: `User ${created.publicId} registered through the mobile application`,
           ipAddress,
-          metadata: { source: "MOBILE_APP", email: created.email },
+          metadata: { source: "MOBILE_APP", phone: created.phone, email: created.email },
         },
       });
       return created;
@@ -108,7 +109,9 @@ export async function POST(request) {
     }, 201);
   } catch (error) {
     if (error?.code === "P2002") {
-      return json({ success: false, error: { code: "EMAIL_ALREADY_REGISTERED", message: "A user with this email address already exists." } }, 409);
+      const fields=Array.isArray(error.meta?.target)?error.meta.target.join(" "):String(error.meta?.target??"");
+      const phoneConflict=fields.includes("phone");
+      return json({ success: false, error: { code: phoneConflict ? "PHONE_ALREADY_REGISTERED" : "EMAIL_ALREADY_REGISTERED", message: phoneConflict ? "A user with this phone number already exists." : "A user with this email address already exists." } }, 409);
     }
     console.error("User registration failed", error);
     return json({ success: false, error: { code: "REGISTRATION_FAILED", message: "Unable to register the user right now." } }, 500);
