@@ -223,3 +223,14 @@ export async function resetUserPassword(publicId, reason) {
   revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
   return {temporaryPassword};
 }
+
+export async function deleteUserAccount(publicId, reason) {
+  const admin=await requireSuperAdmin();
+  const user=await prisma.user.findUniqueOrThrow({where:{publicId}});
+  const deletedAt=new Date();
+  await prisma.user.update({where:{id:user.id},data:{name:"Deleted User",email:null,phone:`deleted-${user.id}`,profileImage:null,passwordHash:null,status:"BANNED",deletedAt,forcedLogoutAt:deletedAt,sessionVersion:{increment:1}}});
+  await logActivity(admin,{action:"DELETE_USER_ACCOUNT",category:"USER_MANAGEMENT",entityType:"User",entityId:publicId,description:`${admin.name} deleted user account ${publicId}`,metadata:{reason,deletedAt:deletedAt.toISOString()}});
+  emitToUser(publicId,"session:force-logout",{success:true,data:{reason:"ACCOUNT_DELETED"}});
+  globalThis.portalDisconnectUser?.(publicId);
+  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
+}

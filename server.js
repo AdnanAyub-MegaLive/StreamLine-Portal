@@ -41,7 +41,7 @@ app.prepare().then(async()=>{
     try{
       const payload=verifyMobileSessionToken(socket.handshake.auth?.token);
       const user=await prisma.user.findUnique({where:{publicId:payload.userId}});
-      if(!user||user.sessionVersion!==payload.sessionVersion)return nextSocket(new Error("SESSION_REVOKED"));
+      if(!user||user.deletedAt||user.sessionVersion!==payload.sessionVersion)return nextSocket(new Error("SESSION_REVOKED"));
       const ban=await prisma.ban.findFirst({where:{userId:user.id,target:"USER",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:new Date()}}]}});
       if(ban){const error=new Error("ACCOUNT_BANNED");error.data={banReason:ban.reason,banExpiresAt:ban.expiresAt?.toISOString()??null};return nextSocket(error);}
       socket.data.userId=user.publicId;

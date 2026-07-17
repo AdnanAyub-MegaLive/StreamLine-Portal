@@ -2,15 +2,21 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis;
-const prismaSchemaVersion = "2026-07-17-session-control-v1";
+const prismaSchemaVersion = "2026-07-17-management-modules-v3";
+const requiredUserFields = ["sessionVersion", "forcedLogoutAt", "passwordHash", "deletedAt"];
 
 const createPrismaClient = () => new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
 
-// Fast Refresh keeps globalThis alive. Couple the cached instance to a schema
-// version so a generated client from an older schema is never reused.
-export const prisma = globalForPrisma.prismaSchemaVersion === prismaSchemaVersion
+const cachedUserFields = globalForPrisma.prisma?._runtimeDataModel?.models?.User?.fields?.map((field) => field.name) ?? [];
+const cachedClientMatchesSchema = globalForPrisma.prismaSchemaVersion === prismaSchemaVersion
+  && requiredUserFields.every((field) => cachedUserFields.includes(field))
+  && ["userAlbumItem","specialIdAssignment","gameLog","liveSession","talentPerformance","talentViolation"].every((model)=>Boolean(globalForPrisma.prisma?.[model]));
+
+// Fast Refresh keeps globalThis alive. Reuse only a client that contains every
+// field required by the current application schema.
+export const prisma = cachedClientMatchesSchema
   ? globalForPrisma.prisma
   : createPrismaClient();
 

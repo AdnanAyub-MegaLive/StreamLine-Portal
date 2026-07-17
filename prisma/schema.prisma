@@ -97,13 +97,18 @@ model User {
   lastLoginAt     DateTime?
   sessionVersion  Int               @default(0)
   forcedLogoutAt  DateTime?
+  deletedAt       DateTime?
   devices         Device[]
   sentGifts       GiftTransaction[]
   bans            Ban[]
   coinAdjustments CoinAdjustment[]
+  albumItems      UserAlbumItem[]
+  specialIds      SpecialIdAssignment[]
+  gameLogs        GameLog[]
 
   @@index([status])
   @@index([vipLevel])
+  @@index([deletedAt])
 }
 
 model Talent {
@@ -130,6 +135,9 @@ model Talent {
   verifications     TalentVerification[]
   salaryHistory     SalaryHistory[]
   bans              Ban[]
+  liveSessions      LiveSession[]
+  performance       TalentPerformance[]
+  violations        TalentViolation[]
 
   @@index([type])
   @@index([verification])
@@ -247,4 +255,88 @@ model SalaryHistory {
   admin       Admin?    @relation(fields: [adminId], references: [id], onDelete: SetNull)
 
   @@index([talentId, periodStart])
+}
+
+model UserAlbumItem {
+  id        String   @id @default(cuid())
+  userId    String
+  mediaUrl  String
+  mediaType String   @default("IMAGE")
+  status    String   @default("APPROVED")
+  caption   String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model SpecialIdAssignment {
+  id        String   @id @default(cuid())
+  userId    String
+  specialId String   @unique
+  status    String   @default("ACTIVE")
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+model GameLog {
+  id           String   @id @default(cuid())
+  userId       String
+  gameName     String
+  wager        BigInt
+  payout       BigInt
+  result       String
+  referenceId  String   @unique
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+}
+
+model LiveSession {
+  id              String   @id @default(cuid())
+  talentId        String
+  roomId          String
+  streamType      String
+  startedAt       DateTime
+  endedAt         DateTime?
+  peakViewers     Int      @default(0)
+  giftsValue      BigInt   @default(0)
+  status          String   @default("COMPLETED")
+  talent          Talent   @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  @@index([talentId, startedAt])
+}
+
+model TalentPerformance {
+  id              String   @id @default(cuid())
+  talentId        String
+  period          String
+  liveMinutes     Int
+  uniqueViewers   Int
+  newFollowers    Int
+  giftsValue      BigInt
+  engagementRate  Decimal  @db.Decimal(5, 2)
+  createdAt       DateTime @default(now())
+  talent          Talent   @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  @@unique([talentId, period])
+}
+
+model TalentViolation {
+  id          String   @id @default(cuid())
+  talentId    String
+  category    String
+  severity    String
+  description String
+  status      String   @default("OPEN")
+  actionTaken String?
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+  talent      Talent   @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  @@index([talentId, status, createdAt])
 }

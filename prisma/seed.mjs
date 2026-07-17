@@ -113,6 +113,27 @@ async function main() {
     await prisma.coinAdjustment.create({ data:{ userId:user.id,adminId:admin.id,operation:"ADD",amount:5000,balanceBefore:37600,balanceAfter:42600,reason:"Initial promotional coin adjustment" } });
   }
 
+  if (await prisma.userAlbumItem.count() === 0) {
+    for (const [index,user] of Object.values(savedUsers).entries()) await prisma.userAlbumItem.create({data:{userId:user.id,mediaUrl:`/uploads/albums/sample-${index+1}.jpg`,caption:"Profile album image",status:index===3?"PENDING":"APPROVED"}});
+  }
+  if (await prisma.specialIdAssignment.count() === 0) {
+    for (const [index,user] of Object.values(savedUsers).slice(0,4).entries()) await prisma.specialIdAssignment.create({data:{userId:user.id,specialId:`88${String(index+1).padStart(4,"0")}`,status:"ACTIVE",expiresAt:new Date("2027-01-01")}});
+  }
+  if (await prisma.gameLog.count() === 0) {
+    const gameNames=["Lucky Wheel","Teen Patti","Fruit Party","Car Race"];
+    for (const [index,user] of Object.values(savedUsers).entries()) await prisma.gameLog.create({data:{userId:user.id,gameName:gameNames[index%gameNames.length],wager:1000+index*250,payout:index%2===0?2200+index*300:0,result:index%2===0?"WIN":"LOSS",referenceId:`GAME-${user.publicId}-${index+1}`}});
+  }
+  if (await prisma.liveSession.count() === 0) {
+    for (const [index,talent] of Object.values(savedTalents).entries()) await prisma.liveSession.create({data:{talentId:talent.id,roomId:`ROOM-${talent.publicId}-01`,streamType:talent.type.includes("AUDIO")?"AUDIO":"VIDEO",startedAt:new Date(Date.now()-(index+1)*86400000),endedAt:new Date(Date.now()-(index+1)*86400000+5400000),peakViewers:420+index*135,giftsValue:12500+index*4800,status:"COMPLETED"}});
+  }
+  if (await prisma.talentPerformance.count() === 0) {
+    for (const [index,talent] of Object.values(savedTalents).entries()) await prisma.talentPerformance.create({data:{talentId:talent.id,period:"2026-07",liveMinutes:2100+index*320,uniqueViewers:18400+index*3100,newFollowers:640+index*95,giftsValue:56000+index*12500,engagementRate:String(12.5+index*1.7)}});
+  }
+  if (await prisma.talentViolation.count() === 0) {
+    const talent=Object.values(savedTalents)[2];
+    await prisma.talentViolation.create({data:{talentId:talent.id,category:"CONTENT_POLICY",severity:"MEDIUM",description:"Unapproved background audio detected during a live session.",status:"OPEN",actionTaken:"Warning issued"}});
+  }
+
   if (await prisma.auditLog.count() === 0) {
     await prisma.auditLog.createMany({
       data: [
