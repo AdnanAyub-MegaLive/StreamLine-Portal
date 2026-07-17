@@ -12,6 +12,7 @@ Send the request with `Content-Type: application/json`. The endpoint is public a
 {
   "name": "Aisha Khan",
   "phone": "+92 300 1234567",
+  "password": "MyPass#8",
   "email": "aisha@example.com",
   "country": "Pakistan",
   "profileImage": "https://cdn.example.com/profiles/aisha.jpg",
@@ -25,7 +26,7 @@ Send the request with `Content-Type: application/json`. The endpoint is public a
 }
 ```
 
-Only `name` and `phone` are required. Email is optional. Phone numbers and email addresses must be unique across users. The complete `device` object is optional; when supplied, `device.macAddress` must contain either a MAC address or another stable device identifier.
+`name`, `phone`, and a password of at least 8 characters are required. Email is optional. Passwords are stored only as salted scrypt hashes and are never returned by the API. Phone numbers and email addresses must be unique across users. The complete `device` object is optional; when supplied, `device.macAddress` must contain either a MAC address or another stable device identifier.
 
 ## React Native example
 

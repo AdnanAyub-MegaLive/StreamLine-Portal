@@ -5,12 +5,14 @@ import TalentTabs from "./talent-tabs";
 import AddAccountModal from "../components/add-account-modal";
 import FeatureSearch from "../components/feature-search";
 import { prisma } from "../../lib/prisma";
+import { reconcileExpiredBans } from "../../lib/ban-maintenance";
 
 const nav = [["Overview", "/home"], ["Users / Senders", "/users"], ["Talent Management", "/talents"], ["Audit Logs", "/audit-logs"], ["Live streams", "#"], ["Reports", "#"]];
 
 export default async function TalentsPage() {
   const session = await auth();
   if (!session?.user) redirect("/");
+  await reconcileExpiredBans();
   const [talents, devices] = await Promise.all([
     prisma.talent.findMany({ orderBy:{createdAt:"desc"} }),
     prisma.device.findMany({ where:{talentId:{not:null}}, include:{talent:true}, orderBy:{lastLoginAt:"desc"} }),

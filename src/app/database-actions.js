@@ -3,12 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "../../auth";
 import { prisma } from "../lib/prisma";
+import { generateTemporaryPassword, hashPassword } from "../lib/password";
+import { emitToUser } from "../lib/realtime";
 
 async function requireAdmin() {
   const session = await auth();
   if (!session?.user?.email) throw new Error("Unauthorized");
   const admin = await prisma.admin.findUnique({ where:{email:session.user.email} });
   if (!admin?.active) throw new Error("Unauthorized");
+  return admin;
+}
+
+async function requireSuperAdmin() {
+  const admin=await requireAdmin();
+  if(admin.role!=="SUPER_ADMIN")throw new Error("SUPER_ADMIN_REQUIRED");
   return admin;
 }
 
@@ -130,7 +138,8 @@ export async function createAccount(type, values) {
     const email=normalizeEmail(values.email);
     if(await prisma.user.findUnique({where:{phone}}))throw new Error("PHONE_ALREADY_EXISTS");
     if(email&&await prisma.user.findUnique({where:{email}}))throw new Error("EMAIL_ALREADY_EXISTS");
-    await prisma.user.create({data:{publicId,name:values.name,email,phone,country:values.country,status:enumValue(values.status),vipLevel:values.userType==="VIP User"?1:0}});
+    const passwordHash=await hashPassword(values.password);
+    await prisma.user.create({data:{publicId,name:values.name,email,phone,passwordHash,country:values.country,status:enumValue(values.status),vipLevel:values.userType==="VIP User"?1:0}});
     await logActivity(admin,{action:"CREATE_USER",category:"USER_MANAGEMENT",entityType:"User",entityId:publicId,description:`${admin.name} created user ${values.name} (${publicId})`,metadata:{phone,email,country:values.country}});
     revalidatePath("/users");
   } else {
@@ -143,18 +152,23 @@ export async function createAccount(type, values) {
   }
 }
 
-export async function createBan({publicId,target,reason,durationMinutes,permanent,proofImage}) {
+export async function createBan({publicId,target,reason,durationMinutes,permanent,proofImage,macAddress}) {
   const admin=await requireAdmin();
   const isTalent=publicId.startsWith("T");
   const owner=isTalent ? await prisma.talent.findUniqueOrThrow({where:{publicId}}) : await prisma.user.findUniqueOrThrow({where:{publicId}});
   let device;
-  if(target==="DEVICE") device=await prisma.device.findFirstOrThrow({where:isTalent?{talentId:owner.id}:{userId:owner.id},orderBy:{lastLoginAt:"desc"}});
+  if(target==="DEVICE") device=await prisma.device.findFirstOrThrow({where:{...(isTalent?{talentId:owner.id}:{userId:owner.id}),...(macAddress?{macAddress}:{})},orderBy:{lastLoginAt:"desc"}});
   const minutes=permanent?null:Number(durationMinutes);
   await prisma.ban.create({data:{target,userId:!isTalent&&target==="USER"?owner.id:null,talentId:isTalent&&target==="USER"?owner.id:null,deviceId:device?.id,adminId:admin.id,reason,proofImage:proofImage||null,durationMinutes:minutes,expiresAt:minutes?new Date(Date.now()+minutes*60000):null}});
   if(target==="DEVICE")await prisma.device.update({where:{id:device.id},data:{isBanned:true}});
   else if(isTalent)await prisma.talent.update({where:{id:owner.id},data:{status:"BANNED"}});
   else await prisma.user.update({where:{id:owner.id},data:{status:"BANNED"}});
   await logActivity(admin,{action:target==="DEVICE"?"BAN_DEVICE":"BAN_ACCOUNT",category:"SECURITY",entityType:isTalent?"Talent":"User",entityId:publicId,description:`${admin.name} banned the ${target.toLowerCase()} for ${isTalent?"talent":"user"} ${publicId}`,metadata:{reason,durationMinutes:minutes,permanent}});
+  if(!isTalent&&target==="USER"){
+    const payload={success:true,data:{sessionVersion:owner.sessionVersion,forcedLogoutAt:owner.forcedLogoutAt?.toISOString()??null,isBanned:true,banReason:reason,banExpiresAt:minutes?new Date(Date.now()+minutes*60000).toISOString():null}};
+    emitToUser(publicId,"account:banned",payload);
+    globalThis.portalScheduleBanExpiry?.(publicId,payload.data.banExpiresAt);
+  }
   revalidatePath(isTalent?"/talents":"/users");
 }
 
@@ -170,12 +184,42 @@ export async function unbanUser(publicId, reason) {
     return result.count;
   });
   await logActivity(admin,{action:"UNBAN_ACCOUNT",category:"SECURITY",entityType:isTalent?"Talent":"User",entityId:publicId,description:`${admin.name} restored login access for ${isTalent?"talent":"user"} ${publicId}`,metadata:{reason,revokedBans:revoked}});
+  if(!isTalent)emitToUser(publicId,"account:unbanned",{success:true,data:{sessionVersion:owner.sessionVersion,forcedLogoutAt:owner.forcedLogoutAt?.toISOString()??null,isBanned:false,banReason:null,banExpiresAt:null}});
   revalidatePath(isTalent?"/talents":"/users"); revalidatePath(`/${isTalent?"talents":"users"}/${publicId}`);
 }
 
 export async function forceLogoutUser(publicId, reason) {
   const admin=await requireAdmin();
-  const user=await prisma.user.update({where:{publicId},data:{sessionVersion:{increment:1},forcedLogoutAt:new Date()},select:{sessionVersion:true}});
+  const user=await prisma.user.update({where:{publicId},data:{sessionVersion:{increment:1},forcedLogoutAt:new Date()},select:{id:true,sessionVersion:true,forcedLogoutAt:true}});
+  const ban=await prisma.ban.findFirst({where:{userId:user.id,target:"USER",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:new Date()}}]},orderBy:{createdAt:"desc"}});
   await logActivity(admin,{action:"FORCE_LOGOUT",category:"SECURITY",entityType:"User",entityId:publicId,description:`${admin.name} forced user ${publicId} to log out of the application`,metadata:{reason,sessionVersion:user.sessionVersion}});
+  emitToUser(publicId,"session:force-logout",{success:true,data:{sessionVersion:user.sessionVersion,forcedLogoutAt:user.forcedLogoutAt.toISOString(),isBanned:Boolean(ban),banReason:ban?.reason??null,banExpiresAt:ban?.expiresAt?.toISOString()??null}});
+  globalThis.portalDisconnectUser?.(publicId);
   revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
+}
+
+export async function unbanDevice(publicId, macAddress, reason) {
+  const admin=await requireAdmin();
+  const user=await prisma.user.findUniqueOrThrow({where:{publicId}});
+  const device=await prisma.device.findFirstOrThrow({where:{userId:user.id,macAddress}});
+  const now=new Date();
+  const revoked=await prisma.$transaction(async (tx) => {
+    const result=await tx.ban.updateMany({where:{deviceId:device.id,target:"DEVICE",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:now}}]},data:{revokedAt:now}});
+    await tx.device.update({where:{id:device.id},data:{isBanned:false}});
+    return result.count;
+  });
+  await logActivity(admin,{action:"UNBAN_DEVICE",category:"SECURITY",entityType:"User",entityId:publicId,description:`${admin.name} unbanned device ${macAddress} for user ${publicId}`,metadata:{reason,macAddress,revokedBans:revoked}});
+  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
+}
+
+export async function resetUserPassword(publicId, reason) {
+  const admin=await requireSuperAdmin();
+  const temporaryPassword=generateTemporaryPassword();
+  const passwordHash=await hashPassword(temporaryPassword);
+  const user=await prisma.user.update({where:{publicId},data:{passwordHash,sessionVersion:{increment:1},forcedLogoutAt:new Date()},select:{sessionVersion:true,forcedLogoutAt:true}});
+  await logActivity(admin,{action:"RESET_USER_PASSWORD",category:"SECURITY",entityType:"User",entityId:publicId,description:`${admin.name} reset the password for user ${publicId}`,metadata:{reason}});
+  emitToUser(publicId,"session:force-logout",{success:true,data:{sessionVersion:user.sessionVersion,forcedLogoutAt:user.forcedLogoutAt.toISOString(),isBanned:false,banReason:null,banExpiresAt:null,reason:"PASSWORD_RESET"}});
+  globalThis.portalDisconnectUser?.(publicId);
+  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
+  return {temporaryPassword};
 }

@@ -1,15 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { createBan, forceLogoutUser, unbanUser } from "../database-actions";
+import { createBan } from "../database-actions";
 
 export default function DeviceInformationTable({ title = "Device Information", records = [] }) {
   const [selectedDevice, setSelectedDevice] = useState(null);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [selectedUnbanUser, setSelectedUnbanUser] = useState(null);
-  const [selectedLogoutUser, setSelectedLogoutUser] = useState(null);
-  const [bannedDevices, setBannedDevices] = useState([]);
-  const [bannedUsers, setBannedUsers] = useState(() => records.filter((record) => record.isUserBanned).map((record) => record.userId));
+  const [bannedDevices, setBannedDevices] = useState(() => records.filter((record) => record.isDeviceBanned).map((record) => record.mac));
   const [userIdQuery, setUserIdQuery] = useState("");
   const filteredRecords = records.filter((record) => record.userId.toLowerCase().includes(userIdQuery.trim().toLowerCase()));
 
@@ -18,36 +14,9 @@ export default function DeviceInformationTable({ title = "Device Information", r
     if (!selectedDevice) return;
     const form=new FormData(event.currentTarget);
     const duration=form.get("duration");
-    await createBan({publicId:selectedDevice.userId,target:"DEVICE",reason:String(form.get("reason")),durationMinutes:duration==="custom"?Number(form.get("customMinutes")):Number(duration),permanent:duration==="permanent",proofImage:form.get("proof")?.name});
-    setBannedDevices((current) => [...current, selectedDevice.userId]);
+    await createBan({publicId:selectedDevice.userId,target:"DEVICE",macAddress:selectedDevice.mac,reason:String(form.get("reason")),durationMinutes:duration==="custom"?Number(form.get("customMinutes")):Number(duration),permanent:duration==="permanent",proofImage:form.get("proof")?.name});
+    setBannedDevices((current) => [...current, selectedDevice.mac]);
     setSelectedDevice(null);
-  }
-
-  async function handleUserBan(event) {
-    event.preventDefault();
-    if (!selectedUser) return;
-    const form=new FormData(event.currentTarget);
-    const duration=form.get("duration");
-    await createBan({publicId:selectedUser.userId,target:"USER",reason:String(form.get("reason")),durationMinutes:duration==="custom"?Number(form.get("customMinutes")):Number(duration),permanent:duration==="permanent",proofImage:form.get("proof")?.name});
-    setBannedUsers((current) => [...current, selectedUser.userId]);
-    setSelectedUser(null);
-  }
-
-  async function handleUnban(event) {
-    event.preventDefault();
-    if (!selectedUnbanUser) return;
-    const form=new FormData(event.currentTarget);
-    await unbanUser(selectedUnbanUser.userId,String(form.get("reason")));
-    setBannedUsers((current) => current.filter((id) => id !== selectedUnbanUser.userId));
-    setSelectedUnbanUser(null);
-  }
-
-  async function handleForceLogout(event) {
-    event.preventDefault();
-    if (!selectedLogoutUser) return;
-    const form=new FormData(event.currentTarget);
-    await forceLogoutUser(selectedLogoutUser.userId,String(form.get("reason")));
-    setSelectedLogoutUser(null);
   }
 
   return (
@@ -60,17 +29,16 @@ export default function DeviceInformationTable({ title = "Device Information", r
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1180px] border-collapse text-left">
           <thead><tr className="bg-[#f8fbfa] text-[10px] font-bold tracking-[.07em] text-[#748883] uppercase">
-            <th className="px-5 py-3.5">User ID</th><th className="py-3.5">User Name</th><th className="py-3.5">Last Login IP</th><th className="py-3.5">Last Login MAC Address</th><th className="py-3.5">Last Login Location</th><th className="py-3.5 text-right">Account Access</th><th className="py-3.5 text-right">Force Logout</th><th className="px-5 py-3.5 text-right">Ban Device</th>
+            <th className="px-5 py-3.5">User ID</th><th className="py-3.5">User Name</th><th className="py-3.5">Last Login IP</th><th className="py-3.5">Last Login MAC Address</th><th className="py-3.5">Last Login Location</th><th className="py-3.5">Device Status</th><th className="px-5 py-3.5 text-right">Ban Device</th>
           </tr></thead>
-          <tbody className="divide-y divide-[#edf2f1]">{filteredRecords.map((record) => <tr key={record.userId} className="transition hover:bg-[#f9fcfb]">
+          <tbody className="divide-y divide-[#edf2f1]">{filteredRecords.map((record) => <tr key={`${record.userId}-${record.mac}`} className="transition hover:bg-[#f9fcfb]">
             <td className="px-5 py-4 text-xs font-bold text-[#087f74]">{record.userId}</td>
             <td className="py-4 text-xs font-semibold text-[#263e3a]">{record.userName}</td>
             <td className="py-4"><code className="rounded-md bg-[#f0f5f4] px-2 py-1 text-[11px] text-[#526a65]">{record.ip}</code></td>
             <td className="py-4"><code className="rounded-md bg-[#f0f5f4] px-2 py-1 text-[11px] text-[#526a65]">{record.mac}</code></td>
             <td className="py-4"><span className="flex items-center gap-2 text-xs text-[#5c716c]"><svg className="h-4 w-4 shrink-0 fill-none stroke-[#2d948a] stroke-[1.8]" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>{record.location}</span></td>
-            <td className="py-4 text-right">{bannedUsers.includes(record.userId) ? <button onClick={() => setSelectedUnbanUser(record)} className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-[10px] font-bold text-emerald-700 transition hover:bg-emerald-50">Unban user</button> : <button onClick={() => setSelectedUser(record)} className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-[10px] font-bold text-amber-700 transition hover:bg-amber-50">Ban user</button>}</td>
-            <td className="py-4 text-right">{record.userId.startsWith("T") ? <span className="text-xs text-[#a1afac]">—</span> : <button onClick={() => setSelectedLogoutUser(record)} className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-[10px] font-bold text-sky-700 transition hover:bg-sky-50">Force logout</button>}</td>
-            <td className="px-5 py-4 text-right"><button onClick={() => setSelectedDevice(record)} disabled={bannedDevices.includes(record.userId)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-[10px] font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-[#dce6e4] disabled:bg-[#f3f6f5] disabled:text-[#8fa09c]">{bannedDevices.includes(record.userId) ? "Device banned" : "Ban device"}</button></td>
+            <td className="py-4"><span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${bannedDevices.includes(record.mac)?"bg-red-50 text-red-700":"bg-emerald-50 text-emerald-700"}`}>{bannedDevices.includes(record.mac)?"Banned":"Active"}</span></td>
+            <td className="px-5 py-4 text-right"><button onClick={() => setSelectedDevice(record)} disabled={bannedDevices.includes(record.mac)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-[10px] font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-[#dce6e4] disabled:bg-[#f3f6f5] disabled:text-[#8fa09c]">{bannedDevices.includes(record.mac) ? "Manage in Blocked tab" : "Ban device"}</button></td>
           </tr>)}</tbody>
         </table>
         {!filteredRecords.length && <div className="py-16 text-center text-sm text-[#788b87]">No device records match this User ID.</div>}
@@ -78,14 +46,11 @@ export default function DeviceInformationTable({ title = "Device Information", r
       <div className="border-t border-[#e8efed] px-5 py-4 text-[10px] text-[#849691]">Showing {filteredRecords.length} of {records.length} device records</div>
     </div>
     {selectedDevice && <BanDeviceModal device={selectedDevice} onClose={() => setSelectedDevice(null)} onBan={handleBan} />}
-    {selectedUser && <BanUserModal user={selectedUser} onClose={() => setSelectedUser(null)} onBan={handleUserBan} />}
-    {selectedUnbanUser && <SecurityActionModal title="Unban user?" description={`Restore application login access for ${selectedUnbanUser.userName} · ${selectedUnbanUser.userId}.`} confirm="Unban user" tone="emerald" onClose={() => setSelectedUnbanUser(null)} onSubmit={handleUnban} />}
-    {selectedLogoutUser && <SecurityActionModal title="Force user logout?" description={`Invalidate all application sessions for ${selectedLogoutUser.userName} · ${selectedLogoutUser.userId}.`} confirm="Force logout" tone="sky" onClose={() => setSelectedLogoutUser(null)} onSubmit={handleForceLogout} />}
     </>
   );
 }
 
-function BanUserModal({ user, onClose, onBan }) {
+export function BanUserModal({ user, onClose, onBan }) {
   const [duration, setDuration] = useState("");
   const [customMinutes, setCustomMinutes] = useState("");
   const minutes = duration === "custom" ? Number(customMinutes) : Number(duration);
@@ -108,7 +73,7 @@ function BanUserModal({ user, onClose, onBan }) {
   </div>;
 }
 
-function SecurityActionModal({title,description,confirm,tone,onClose,onSubmit}) {
+export function SecurityActionModal({title,description,confirm,tone,onClose,onSubmit}) {
   const buttonClass=tone==="emerald"?"bg-emerald-600 hover:bg-emerald-700":"bg-sky-600 hover:bg-sky-700";
   return <div className="fixed inset-0 z-50 grid place-items-center bg-[#061c1a]/60 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" onMouseDown={(event)=>{if(event.target===event.currentTarget)onClose();}}><div className="w-full max-w-[460px] rounded-2xl bg-white shadow-[0_24px_80px_rgba(0,0,0,.25)]"><div className="flex items-start justify-between border-b border-[#e5ecea] px-6 py-5"><div><h2 className="text-lg font-bold text-[#172f2b]">{title}</h2><p className="mt-1 text-xs text-[#748782]">{description}</p></div><button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-xl text-[#7c8f8a] hover:bg-[#f0f5f4]" aria-label="Close modal">×</button></div><form onSubmit={onSubmit} className="p-6"><label className="mb-2 block text-xs font-bold text-[#29423d]" htmlFor={`${tone}-action-reason`}>Reason</label><textarea id={`${tone}-action-reason`} name="reason" required rows="3" placeholder="Explain why this action is required..." className="w-full resize-none rounded-lg border border-[#dce6e4] px-3.5 py-3 text-xs outline-none focus:border-[#2ca89c]"/><div className="mt-6 flex justify-end gap-2 border-t border-[#e8efed] pt-5"><button type="button" onClick={onClose} className="h-10 rounded-lg border border-[#d7e3e0] px-4 text-xs font-bold text-[#5d716c]">Cancel</button><button type="submit" className={`h-10 rounded-lg px-5 text-xs font-bold text-white ${buttonClass}`}>{confirm}</button></div></form></div></div>;
 }

@@ -35,11 +35,12 @@ const deviceData = [
 async function main() {
   const admin = await prisma.admin.upsert({
     where: { email: process.env.ADMIN_EMAIL ?? "admin@streamline.com" },
-    update: { name: "Platform Admin", active: true },
+    update: { name: "Platform Admin", active: true, role: "SUPER_ADMIN" },
     create: {
       name: "Platform Admin",
       email: process.env.ADMIN_EMAIL ?? "admin@streamline.com",
       passwordHash: "ENV_AUTH_PENDING_HASH_MIGRATION",
+      role: "SUPER_ADMIN",
     },
   });
 

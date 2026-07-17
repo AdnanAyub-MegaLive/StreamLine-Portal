@@ -1,4 +1,6 @@
 import { prisma } from "../../../../lib/prisma";
+import { hashPassword } from "../../../../lib/password";
+import mobileSession from "../../../../lib/mobile-session.cjs";
 
 const allowedOrigin = process.env.MOBILE_APP_ORIGIN || "*";
 const corsHeaders = {
@@ -15,10 +17,12 @@ function validateRegistration(body) {
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   const phone = typeof body?.phone === "string" ? body.phone.trim().replace(/[\s().-]/g, "") : "";
+  const password = typeof body?.password === "string" ? body.password : "";
 
   if (name.length < 2 || name.length > 100) errors.name = "Name must contain 2 to 100 characters.";
   if (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)) errors.email = "Enter a valid email address.";
   if (!/^\+?[0-9]{7,15}$/.test(phone)) errors.phone = "Enter a valid phone number containing 7 to 15 digits.";
+  if (password.length<8) errors.password = "Password must contain at least 8 characters.";
   if (body?.country != null && (typeof body.country !== "string" || body.country.trim().length > 100)) errors.country = "Country must contain no more than 100 characters.";
   if (body?.profileImage != null && (typeof body.profileImage !== "string" || body.profileImage.length > 2048)) errors.profileImage = "Profile image must be a URL no longer than 2048 characters.";
 
@@ -26,7 +30,7 @@ function validateRegistration(body) {
   if (device != null && (typeof device !== "object" || Array.isArray(device))) errors.device = "Device must be an object.";
   if (device && (typeof device.macAddress !== "string" || !device.macAddress.trim())) errors["device.macAddress"] = "MAC address or a stable device identifier is required when device information is supplied.";
 
-  return { errors, values: { name, email: email || null, phone } };
+  return { errors, values: { name, email: email || null, phone, password } };
 }
 
 export function OPTIONS() {
@@ -52,12 +56,14 @@ export async function POST(request) {
 
   try {
     const user = await prisma.$transaction(async (tx) => {
+      const passwordHash=await hashPassword(values.password);
       const created = await tx.user.create({
         data: {
           publicId,
           name: values.name,
           email: values.email,
           phone: values.phone,
+          passwordHash,
           country: cleanOptional(body.country),
           profileImage: cleanOptional(body.profileImage),
           role: "LISTENER",
@@ -89,6 +95,7 @@ export async function POST(request) {
       return created;
     });
 
+    const sessionToken=mobileSession.createMobileSessionToken(user);
     return json({
       success: true,
       message: "User registered successfully.",
@@ -104,7 +111,9 @@ export async function POST(request) {
           status: user.status,
           vipLevel: user.vipLevel,
           createdAt: user.createdAt.toISOString(),
+          sessionVersion: user.sessionVersion,
         },
+        sessionToken,
       },
     }, 201);
   } catch (error) {
