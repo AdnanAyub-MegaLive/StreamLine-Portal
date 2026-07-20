@@ -133,6 +133,9 @@ async function main() {
     const talent=Object.values(savedTalents)[2];
     await prisma.talentViolation.create({data:{talentId:talent.id,category:"CONTENT_POLICY",severity:"MEDIUM",description:"Unapproved background audio detected during a live session.",status:"OPEN",actionTaken:"Warning issued"}});
   }
+  if (await prisma.audioRoom.count() === 0) {
+    await prisma.audioRoom.create({data:{roomId:"AUDIO-ROOM-1001",ownerId:savedUsers["USR-1048"].id,title:"Late Night Music Lounge",status:"ENDED",recordingUrl:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",participantCount:84,startedAt:new Date(Date.now()-7200000),endedAt:new Date(Date.now()-3600000)}});
+  }
 
   if (await prisma.auditLog.count() === 0) {
     await prisma.auditLog.createMany({

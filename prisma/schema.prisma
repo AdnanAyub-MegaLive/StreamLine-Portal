@@ -105,6 +105,7 @@ model User {
   albumItems      UserAlbumItem[]
   specialIds      SpecialIdAssignment[]
   gameLogs        GameLog[]
+  audioRooms      AudioRoom[]
 
   @@index([status])
   @@index([vipLevel])
@@ -339,4 +340,26 @@ model TalentViolation {
   talent      Talent   @relation(fields: [talentId], references: [id], onDelete: Cascade)
 
   @@index([talentId, status, createdAt])
+}
+
+model AudioRoom {
+  id               String   @id @default(cuid())
+  roomId           String   @unique
+  ownerId          String
+  title            String
+  status           String   @default("LIVE")
+  liveAudioUrl     String?
+  recordingUrl     String?
+  participantCount Int      @default(0)
+  joiningDisabled  Boolean  @default(false)
+  isBlocked        Boolean  @default(false)
+  blockedReason    String?
+  startedAt        DateTime @default(now())
+  endedAt          DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  owner            User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@index([ownerId, startedAt])
+  @@index([status, startedAt])
 }

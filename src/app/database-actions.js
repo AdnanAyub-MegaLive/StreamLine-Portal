@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "../../auth";
 import { prisma } from "../lib/prisma";
 import { generateTemporaryPassword, hashPassword } from "../lib/password";
-import { emitToUser } from "../lib/realtime";
+import { emitToAudioRoom, emitToUser } from "../lib/realtime";
 
 async function requireAdmin() {
   const session = await auth();
@@ -233,4 +233,30 @@ export async function deleteUserAccount(publicId, reason) {
   emitToUser(publicId,"session:force-logout",{success:true,data:{reason:"ACCOUNT_DELETED"}});
   globalThis.portalDisconnectUser?.(publicId);
   revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
+}
+
+export async function controlAudioRoom(roomId, action, reason) {
+  const admin=await requireAdmin();
+  const room=await prisma.audioRoom.findUniqueOrThrow({where:{roomId},include:{owner:true}});
+  const now=new Date();
+  let event;
+  let description;
+  if(action==="BLOCK"){
+    await prisma.audioRoom.update({where:{id:room.id},data:{isBlocked:true,joiningDisabled:true,status:"BLOCKED",blockedReason:reason,endedAt:now}});
+    event="audio-room:blocked"; description=`${admin.name} blocked audio room ${roomId}`;
+  }else if(action==="DISABLE_JOINING"){
+    await prisma.audioRoom.update({where:{id:room.id},data:{joiningDisabled:true}});
+    event="audio-room:joining-disabled"; description=`${admin.name} disabled joining for audio room ${roomId}`;
+  }else if(action==="TERMINATE"){
+    await prisma.audioRoom.update({where:{id:room.id},data:{status:"TERMINATED",joiningDisabled:true,endedAt:now}});
+    event="audio-room:terminated"; description=`${admin.name} terminated audio room ${roomId}`;
+  }else if(action==="DELETE"){
+    await prisma.audioRoom.delete({where:{id:room.id}});
+    event="audio-room:deleted"; description=`${admin.name} permanently deleted audio room ${roomId}`;
+  }else throw new Error("INVALID_AUDIO_ROOM_ACTION");
+  const payload={success:true,data:{roomId,action,reason,actedAt:now.toISOString()}};
+  emitToAudioRoom(roomId,event,payload);
+  emitToUser(room.owner.publicId,event,payload);
+  await logActivity(admin,{action:`AUDIO_ROOM_${action}`,category:"USER_MANAGEMENT",entityType:"AudioRoom",entityId:roomId,description,metadata:{reason,ownerId:room.owner.publicId}});
+  revalidatePath("/users");
 }

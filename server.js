@@ -55,6 +55,13 @@ app.prepare().then(async()=>{
     const user=await prisma.user.findUnique({where:{publicId:userId}});
     const ban=await prisma.ban.findFirst({where:{userId:user.id,target:"USER",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:new Date()}}]},orderBy:{createdAt:"desc"}});
     socket.emit("session:status",{success:true,data:{sessionVersion:user.sessionVersion,forcedLogoutAt:user.forcedLogoutAt?.toISOString()??null,isBanned:Boolean(ban),banReason:ban?.reason??null,banExpiresAt:ban?.expiresAt?.toISOString()??null}});
+    socket.on("audio-room:join",async({roomId}={},ack=()=>{})=>{
+      const room=await prisma.audioRoom.findUnique({where:{roomId:String(roomId??"")}});
+      if(!room||room.isBlocked||room.joiningDisabled||room.status!=="LIVE")return ack({success:false,error:{code:"ROOM_UNAVAILABLE"}});
+      socket.join(`audio-room:${room.roomId}`);
+      ack({success:true,data:{roomId:room.roomId}});
+    });
+    socket.on("audio-room:leave",({roomId}={})=>socket.leave(`audio-room:${String(roomId??"")}`));
   });
 
   httpServer.listen(port,hostname,()=>console.log(`> Portal and Socket.IO ready on http://${hostname}:${port}`));
