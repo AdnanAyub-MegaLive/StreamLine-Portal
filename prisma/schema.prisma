@@ -387,4 +387,5 @@ model AudioRoom {
 
   @@index([ownerId, startedAt])
   @@index([status, startedAt])
+  @@unique([ownerId])
 }

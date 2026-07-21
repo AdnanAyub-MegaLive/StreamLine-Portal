@@ -37,6 +37,18 @@ app.prepare().then(async()=>{
   const timedBans=await prisma.ban.findMany({where:{target:"USER",userId:{not:null},revokedAt:null,expiresAt:{gt:new Date()}},include:{user:{select:{publicId:true}}}});
   for(const ban of timedBans)scheduleBanExpiry(ban.user.publicId,ban.expiresAt);
 
+  const releaseEmptyAudioRoom=async(roomId)=>{
+    const socketRoom=`audio-room:${roomId}`;
+    if((io.sockets.adapter.rooms.get(socketRoom)?.size??0)>0)return false;
+    const room=await prisma.audioRoom.findUnique({where:{roomId},include:{owner:{select:{publicId:true}}}});
+    if(!room||room.status!=="LIVE")return false;
+    const endedAt=new Date();
+    await prisma.audioRoom.update({where:{id:room.id},data:{status:"IDLE",participantCount:0,liveAudioUrl:null,endedAt}});
+    await prisma.auditLog.create({data:{action:"AUDIO_ROOM_AUTO_RELEASED",category:"USER_MANAGEMENT",entityType:"AudioRoom",entityId:roomId,description:`Audio room ${roomId} became empty; live resources were released and its persistent ID was retained.`,metadata:{source:"SOCKET_IO",ownerId:room.owner.publicId,persistentRoomId:true}}});
+    io.to(`user:${room.owner.publicId}`).emit("audio-room:idle",{success:true,data:{roomId,status:"IDLE",endedAt:endedAt.toISOString(),roomIdRetained:true}});
+    return true;
+  };
+
   io.use(async(socket,nextSocket)=>{
     try{
       const payload=verifyMobileSessionToken(socket.handshake.auth?.token);
@@ -59,9 +71,22 @@ app.prepare().then(async()=>{
       const room=await prisma.audioRoom.findUnique({where:{roomId:String(roomId??"")}});
       if(!room||room.isBlocked||room.joiningDisabled||room.status!=="LIVE")return ack({success:false,error:{code:"ROOM_UNAVAILABLE"}});
       socket.join(`audio-room:${room.roomId}`);
+      const participantCount=io.sockets.adapter.rooms.get(`audio-room:${room.roomId}`)?.size??1;
+      await prisma.audioRoom.update({where:{id:room.id},data:{participantCount}});
       ack({success:true,data:{roomId:room.roomId}});
     });
-    socket.on("audio-room:leave",({roomId}={})=>socket.leave(`audio-room:${String(roomId??"")}`));
+    socket.on("audio-room:leave",async({roomId}={},ack=()=>{})=>{
+      const id=String(roomId??"");
+      await socket.leave(`audio-room:${id}`);
+      const participantCount=io.sockets.adapter.rooms.get(`audio-room:${id}`)?.size??0;
+      if(participantCount)await prisma.audioRoom.updateMany({where:{roomId:id,status:"LIVE"},data:{participantCount}});
+      else await releaseEmptyAudioRoom(id);
+      ack({success:true,data:{roomId:id,participantCount,idRetained:true}});
+    });
+    socket.on("disconnecting",()=>{
+      const roomIds=[...socket.rooms].filter((name)=>name.startsWith("audio-room:")).map((name)=>name.slice(11));
+      for(const roomId of roomIds)setTimeout(()=>releaseEmptyAudioRoom(roomId).catch(console.error),0);
+    });
   });
 
   httpServer.listen(port,hostname,()=>console.log(`> Portal and Socket.IO ready on http://${hostname}:${port}`));

@@ -1,48 +1,89 @@
-# Mobile audio room records
+# Mobile audio-room API
 
-Use the signed mobile `sessionToken` returned by registration/login for every request.
+## Persistent room identity
 
-## Create or update a room record
+Each user can own exactly one audio-room ID. The backend assigns this ID and React Native must store/use the `roomId` returned by the API. Do not generate a room ID in the app.
+
+When the room becomes empty, its Socket.IO runtime and live audio resource are released, while the database retains the assigned ID with status `IDLE`. Starting again reuses the same ID. Only an administrator's **Delete permanently** action removes that identity; the user's next start then receives a new ID.
+
+All requests require `Authorization: Bearer <sessionToken>`.
+
+## Get the assigned room
+
+`GET /api/audio-rooms`
+
+Returns `data.room`, or `null` before the first room is created. `data.rooms` is retained as a compatibility array containing zero or one room.
+
+## Create or start the room
 
 `POST /api/audio-rooms`
 
 ```json
 {
-  "roomId": "AUDIO-ROOM-2048",
-  "title": "Late Night Lounge",
-  "status": "LIVE",
-  "liveAudioUrl": "https://media.example.com/live/2048.m3u8",
-  "recordingUrl": null,
-  "participantCount": 42,
-  "startedAt": "2026-07-20T08:00:00.000Z",
-  "endedAt": null
+  "action": "START",
+  "title": "Late Night Music Lounge",
+  "liveAudioUrl": "https://media.example.com/live/stream.m3u8",
+  "participantCount": 1
 }
 ```
 
-Headers:
+The first call returns HTTP `201`, assigns a system-generated ID, and sets `reused: false`. Later calls return HTTP `200`, reuse the assigned ID, and set `reused: true`.
 
-```text
-Authorization: Bearer <sessionToken>
-Content-Type: application/json
+```json
+{
+  "success": true,
+  "data": {
+    "roomId": "ROOM-7F30A921B8C4",
+    "reused": true,
+    "room": {
+      "roomId": "ROOM-7F30A921B8C4",
+      "status": "LIVE"
+    }
+  }
+}
 ```
 
-Send the same `roomId` as participants change, when a recording URL becomes available, and when the room changes to `ENDED`. The backend upserts the record and prevents the mobile app from overriding administrator blocks.
+Any `roomId` sent by older app builds is ignored; the backend-owned ID is authoritative.
 
-`GET /api/audio-rooms` returns the authenticated user’s latest 100 rooms.
+## Owner exits or ends the room
 
-## Socket.IO integration
+```json
+{
+  "action": "EXIT",
+  "recordingUrl": "https://media.example.com/recordings/session.mp3"
+}
+```
 
-After connecting with the mobile session token, join the room channel:
+`EXIT`, `EMPTY`, and `END` all change the room to `IDLE`, set participants to zero, clear the live-audio URL, preserve an optional recording URL, and retain the room ID.
+
+The Socket.IO server also performs this automatically when the final socket leaves or disconnects. It emits `audio-room:idle` to the owner:
+
+```json
+{
+  "success": true,
+  "data": {
+    "roomId": "ROOM-7F30A921B8C4",
+    "status": "IDLE",
+    "roomIdRetained": true
+  }
+}
+```
+
+## Socket.IO
+
+Join only after the START response:
 
 ```js
-socket.emit("audio-room:join", { roomId }, (result) => {
-  if (!result.success) leaveRoom();
-});
-
-socket.on("audio-room:joining-disabled", stopNewJoins);
-socket.on("audio-room:blocked", showRoomBlockedScreen);
-socket.on("audio-room:terminated", closeRoomImmediately);
-socket.on("audio-room:deleted", closeRoomImmediately);
+socket.emit("audio-room:join", { roomId: result.data.roomId }, callback);
+socket.emit("audio-room:leave", { roomId: result.data.roomId }, callback);
 ```
 
-The app should also process the same events on the owner’s user socket. Blocking and termination are effective immediately and are recorded in portal Audit Logs.
+Listen for administrator and lifecycle events:
+
+- `audio-room:idle`
+- `audio-room:joining-disabled`
+- `audio-room:blocked`
+- `audio-room:terminated`
+- `audio-room:deleted`
+
+After `audio-room:deleted`, discard the old ID locally. The next `START` request creates and returns a new persistent ID.
