@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { assignSpecialId, deleteUserAccount, resetUserPassword, updateUserAccount } from "../database-actions";
+import usePortalData from "../hooks/use-portal-data";
 
 const statusStyles={Active:"bg-emerald-50 text-emerald-700",Pending:"bg-amber-50 text-amber-700",Suspended:"bg-red-50 text-red-700",Banned:"bg-red-50 text-red-700"};
 
 export default function UsersTable({initialData,specialIdCatalog}){
-  const [users,setUsers]=useState(initialData); const [query,setQuery]=useState(""); const [status,setStatus]=useState("All"); const [vipOnly,setVipOnly]=useState(false); const [menu,setMenu]=useState(null); const [modal,setModal]=useState(null);
+  const [users,setUsers]=usePortalData(initialData); const [query,setQuery]=useState(""); const [status,setStatus]=useState("All"); const [vipOnly,setVipOnly]=useState(false); const [menu,setMenu]=useState(null); const [modal,setModal]=useState(null);
   const filtered=useMemo(()=>users.filter((user)=>`${user.name} ${user.phone} ${user.actualEmail??""} ${user.id} ${user.specialId??""}`.toLowerCase().includes(query.toLowerCase())&&(status==="All"||user.status===status)&&(!vipOnly||user.vipLevel>0)),[users,query,status,vipOnly]);
   const saveUser=(id,changes)=>setUsers((current)=>current.map((user)=>user.id===id?{...user,...changes}:user));
   return <section className="overflow-hidden rounded-2xl border border-[#dce8e5] bg-white">

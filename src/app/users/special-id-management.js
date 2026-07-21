@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { createSpecialIdDefinition, revokeSpecialId } from "../database-actions";
+import usePortalData from "../hooks/use-portal-data";
 
 const formatMinutes=(minutes)=>minutes%525600===0?`${minutes/525600} year(s)`:minutes%43200===0?`${minutes/43200} month(s)`:minutes%1440===0?`${minutes/1440} day(s)`:minutes%60===0?`${minutes/60} hour(s)`:`${minutes} minutes`;
 
 export default function SpecialIdAssignments({initialAssignments}){
-  const [rows,setRows]=useState(initialAssignments);
+  const [rows,setRows]=usePortalData(initialAssignments);
   const [selected,setSelected]=useState(null);
   const active=rows.filter((row)=>row.status==="ACTIVE").length;
   return <section className="overflow-hidden rounded-2xl border border-[#dce8e5] bg-white">
@@ -17,7 +18,7 @@ export default function SpecialIdAssignments({initialAssignments}){
 }
 
 export function SpecialIdCatalog({initialCatalog}){
-  const [catalog,setCatalog]=useState(initialCatalog);
+  const [catalog,setCatalog]=usePortalData(initialCatalog);
   const [creating,setCreating]=useState(false);
   return <section className="overflow-hidden rounded-2xl border border-[#dce8e5] bg-white">
     <div className="flex flex-col gap-3 border-b border-[#e5ecea] p-5 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-base font-bold">VIP &amp; SVIP Special IDs</h2><p className="mt-1 text-xs text-[#748782]">Create 4–7 character IDs and define automatic VIP or top-up eligibility.</p></div><button onClick={()=>setCreating(true)} className="h-10 rounded-lg bg-[#087f74] px-4 text-xs font-bold text-white">Create Special ID</button></div>

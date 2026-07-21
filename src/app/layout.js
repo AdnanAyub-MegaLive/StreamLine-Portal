@@ -1,4 +1,5 @@
 import "./globals.css";
+import PortalAutoRefresh from "./components/portal-auto-refresh";
 
 export const metadata = {
   title: "Admin Sign In | Streamline",
@@ -8,7 +9,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>{children}<PortalAutoRefresh /></body>
     </html>
   );
 }

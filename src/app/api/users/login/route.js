@@ -2,6 +2,7 @@ import { prisma } from "../../../../lib/prisma";
 import { verifyPassword } from "../../../../lib/password";
 import mobileSession from "../../../../lib/mobile-session.cjs";
 import { getEffectiveUserId, reconcileExpiredSpecialIds } from "../../../../lib/special-id";
+import { reconcileExpiredBans } from "../../../../lib/ban-maintenance";
 
 const allowedOrigin=process.env.MOBILE_APP_ORIGIN||"*";
 const corsHeaders={"Access-Control-Allow-Origin":allowedOrigin,"Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization"};
@@ -21,6 +22,7 @@ export async function POST(request) {
   if(!device||typeof device!=="object"||Array.isArray(device)||!macAddress||!location)return json({success:false,error:{code:"VALIDATION_ERROR",message:"Login device information is required.",fields:{...(!macAddress?{"device.macAddress":"A MAC address or stable device identifier is required."}:{}),...(!location?{"device.location":"The user's current login location is required."}:{})}}},422);
   const user=await prisma.user.findUnique({where:{phone}});
   if(!user||user.deletedAt||!await verifyPassword(password,user.passwordHash))return json({success:false,error:{code:"INVALID_CREDENTIALS",message:"Phone number or password is incorrect."}},401);
+  await reconcileExpiredBans();
   const forwardedFor=request.headers.get("x-forwarded-for");
   const loginIp=forwardedFor?.split(",")[0]?.trim()||request.headers.get("x-real-ip")||null;
   const loginAt=new Date();
@@ -28,7 +30,8 @@ export async function POST(request) {
   const storedDevice=await prisma.$transaction(async(tx)=>{
     const record=await tx.device.upsert({where:{userId_macAddress:{userId:user.id,macAddress}},update:{lastLoginIp:loginIp,location,platform:clean(device.platform,100),deviceName:clean(device.deviceName,255),lastLoginAt:loginAt},create:{userId:user.id,macAddress,lastLoginIp:loginIp,location,platform:clean(device.platform,100),deviceName:clean(device.deviceName,255),lastLoginAt:loginAt}});
     await tx.user.update({where:{id:user.id},data:{lastLoginAt:loginAt}});
-    await tx.auditLog.create({data:{action:ban?"BANNED_USER_LOGIN_ATTEMPT":"USER_LOGIN",category:"AUTHENTICATION",entityType:"User",entityId:user.publicId,description:`User ${user.publicId} ${ban?"attempted to log in while banned":"logged in through the mobile application"}`,ipAddress:loginIp,metadata:{source:"MOBILE_APP",macAddress,location,platform:clean(device.platform,100),deviceName:clean(device.deviceName,255)}}});
+    const blocked=ban||record.isBanned;
+    await tx.auditLog.create({data:{action:ban?"BANNED_USER_LOGIN_ATTEMPT":record.isBanned?"BANNED_DEVICE_LOGIN_ATTEMPT":"USER_LOGIN",category:"AUTHENTICATION",entityType:"User",entityId:user.publicId,description:`User ${user.publicId} ${ban?"attempted to log in while banned":record.isBanned?`attempted to log in from banned device ${macAddress}`:"logged in through the mobile application"}`,ipAddress:loginIp,metadata:{source:"MOBILE_APP",macAddress,location,platform:clean(device.platform,100),deviceName:clean(device.deviceName,255),blocked:Boolean(blocked)}}});
     return record;
   });
   await reconcileExpiredSpecialIds();
@@ -36,5 +39,9 @@ export async function POST(request) {
   const data={sessionVersion:user.sessionVersion,forcedLogoutAt:user.forcedLogoutAt?.toISOString()??null,isBanned:Boolean(ban),banReason:ban?.reason??null,banExpiresAt:ban?.expiresAt?.toISOString()??null};
   const login={ipAddress:storedDevice.lastLoginIp,macAddress:storedDevice.macAddress,location:storedDevice.location,platform:storedDevice.platform,deviceName:storedDevice.deviceName,loggedInAt:storedDevice.lastLoginAt?.toISOString()??loginAt.toISOString()};
   if(ban)return json({success:true,data:{...data,login}},403);
+  if(storedDevice.isBanned){
+    const deviceBan=await prisma.ban.findFirst({where:{deviceId:storedDevice.id,target:"DEVICE",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:new Date()}}]},orderBy:{createdAt:"desc"}});
+    return json({success:false,error:{code:"DEVICE_BANNED",message:"This device has been banned.",details:{macAddress:storedDevice.macAddress,reason:deviceBan?.reason??null,expiresAt:deviceBan?.expiresAt?.toISOString()??null}}},403);
+  }
   return json({success:true,data:{...data,user:{id:identity.effectiveId,normalId:identity.normalId,specialId:identity.specialId,specialIdExpiresAt:identity.specialIdExpiresAt?.toISOString()??null,name:user.name,phone:user.phone,email:user.email,country:user.country,profileImage:user.profileImage,role:user.role,status:user.status,vipLevel:user.vipLevel,createdAt:user.createdAt.toISOString()},login,sessionToken:mobileSession.createMobileSessionToken(user)}});
 }

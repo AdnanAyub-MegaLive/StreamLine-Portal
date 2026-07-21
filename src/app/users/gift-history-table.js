@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { adjustUserCoins } from "../database-actions";
+import usePortalData from "../hooks/use-portal-data";
 
 const number = new Intl.NumberFormat("en-US");
 
 export default function GiftHistoryTable({ initialData }) {
-  const [users, setUsers] = useState(initialData.map((user) => ({ ...user, vipLabel:user.vipLevel ? `VIP ${user.vipLevel}` : "Standard", lastGift:user.lastGift ?? "No gifts yet" })));
+  const [users, setUsers] = usePortalData(initialData.map((user) => ({ ...user, vipLabel:user.vipLevel ? `VIP ${user.vipLevel}` : "Standard", lastGift:user.lastGift ?? "No gifts yet" })));
   const [query, setQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
   const filteredUsers = useMemo(() => users.filter((user) => `${user.id} ${user.name}`.toLowerCase().includes(query.trim().toLowerCase())), [users, query]);

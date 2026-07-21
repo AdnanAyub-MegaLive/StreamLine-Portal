@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import UsersTable from "./users-table";
 import DeviceInformationTable from "../components/device-information-table";
 import GiftHistoryTable from "./gift-history-table";
@@ -13,10 +13,8 @@ import SpecialIdAssignments, { SpecialIdCatalog } from "./special-id-management"
 const tabs = ["User List", "Gift Sending History", "Audio Room Records", "Device Information", "Blocked and Banned User", "User Level", "User Album", "Special ID", "VIP & SVIP IDs", "User Top History", "Game logs"];
 export default function ManagementTabs({ users, devices, modules, audioRooms, specialIdCatalog }) {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const requestedTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState(tabs.includes(requestedTab) ? requestedTab : tabs[0]);
-  useEffect(()=>{const timer=setInterval(()=>router.refresh(),60000);return()=>clearInterval(timer);},[router]);
   const activeUsers=users.filter((user)=>user.status==="Active").length;
   const vipUsers=users.filter((user)=>user.vipLevel>0).length;
   const stats=[["Total users",users.length,"Stored accounts"],["Active users",activeUsers,`${users.length ? Math.round(activeUsers/users.length*100) : 0}% of users`],["Device records",devices.length,"Application login devices"],["VIP users",vipUsers,`${users.length ? Math.round(vipUsers/users.length*100) : 0}% of users`]];

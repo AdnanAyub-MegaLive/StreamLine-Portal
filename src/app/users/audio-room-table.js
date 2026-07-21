@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { controlAudioRoom } from "../database-actions";
+import usePortalData from "../hooks/use-portal-data";
 
 const actions=[["DISABLE_JOINING","Disable joining","amber"],["BLOCK","Block room","red"],["TERMINATE","Terminate room","red"],["DELETE","Delete permanently","red"]];
 
 export default function AudioRoomTable({initialRooms}) {
-  const [rooms,setRooms]=useState(initialRooms);
+  const [rooms,setRooms]=usePortalData(initialRooms);
   const [query,setQuery]=useState("");
   const [selected,setSelected]=useState(null);
   const filtered=useMemo(()=>rooms.filter((room)=>`${room.roomId} ${room.title} ${room.ownerId} ${room.owner} ${room.status}`.toLowerCase().includes(query.trim().toLowerCase())),[rooms,query]);

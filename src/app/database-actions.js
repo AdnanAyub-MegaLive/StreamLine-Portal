@@ -178,6 +178,7 @@ export async function createBan({publicId,target,reason,durationMinutes,permanen
     emitToUser(publicId,"account:banned",payload);
     globalThis.portalScheduleBanExpiry?.(publicId,payload.data.banExpiresAt);
   }
+  if(!isTalent&&target==="DEVICE")emitToUser(publicId,"device:banned",{success:true,data:{macAddress:device.macAddress,reason,banExpiresAt:minutes?new Date(Date.now()+minutes*60000).toISOString():null}});
   revalidatePath(isTalent?"/talents":"/users");
 }
 
@@ -218,6 +219,7 @@ export async function unbanDevice(publicId, macAddress, reason) {
     return result.count;
   });
   await logActivity(admin,{action:"UNBAN_DEVICE",category:"SECURITY",entityType:"User",entityId:publicId,description:`${admin.name} unbanned device ${macAddress} for user ${publicId}`,metadata:{reason,macAddress,revokedBans:revoked}});
+  emitToUser(publicId,"device:unbanned",{success:true,data:{macAddress,reason}});
   revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
 }
 

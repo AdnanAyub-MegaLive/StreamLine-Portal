@@ -56,3 +56,51 @@ Every login requires credentials plus current device information. The backend de
 Each successful credential check upserts the matching `Device` record, updates the user's last-login time, and writes an authentication audit log. A valid banned-user login attempt records the same device/login information but returns HTTP `403` with ban details.
 
 Missing device ID or location returns HTTP `422` with `error.fields`.
+
+## Device-ban enforcement
+
+If the submitted device is banned, login returns HTTP `403`:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "DEVICE_BANNED",
+    "message": "This device has been banned.",
+    "details": {
+      "macAddress": "stable-device-or-installation-id",
+      "reason": "Repeated policy violations",
+      "expiresAt": "2026-07-28T12:00:00.000Z"
+    }
+  }
+}
+```
+
+## Session status
+
+Send the same stable identifier when polling session state:
+
+`GET /api/users/session/status?macAddress=stable-device-or-installation-id`
+
+Continue sending the mobile session token in `Authorization: Bearer <sessionToken>`. The response now includes:
+
+```json
+{
+  "success": true,
+  "data": {
+    "deviceBanned": true,
+    "deviceBanReason": "Repeated policy violations",
+    "deviceBanExpiresAt": "2026-07-28T12:00:00.000Z",
+    "macAddress": "stable-device-or-installation-id"
+  }
+}
+```
+
+Omitting `macAddress` returns HTTP `422` with error code `DEVICE_ID_REQUIRED`.
+
+## Socket.IO events
+
+- `device:banned` — compare `payload.data.macAddress` with the current device ID and immediately show the banned screen/logout only on the matching device.
+- `device:unbanned` — compare the MAC/device ID and restore access on the matching device.
+
+Both events include `success: true`. The ban event also includes `reason` and `banExpiresAt`; the unban event includes `reason`.
