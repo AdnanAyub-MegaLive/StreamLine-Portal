@@ -1,6 +1,7 @@
 import { prisma } from "../../../../lib/prisma";
 import { verifyPassword } from "../../../../lib/password";
 import mobileSession from "../../../../lib/mobile-session.cjs";
+import { getEffectiveUserId, reconcileExpiredSpecialIds } from "../../../../lib/special-id";
 
 export async function POST(request) {
   let body;
@@ -10,8 +11,10 @@ export async function POST(request) {
   const user=await prisma.user.findUnique({where:{phone}});
   if(!user||user.deletedAt||!await verifyPassword(password,user.passwordHash))return Response.json({success:false,error:{code:"INVALID_CREDENTIALS",message:"Phone number or password is incorrect."}},{status:401});
   const ban=await prisma.ban.findFirst({where:{userId:user.id,target:"USER",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:new Date()}}]},orderBy:{createdAt:"desc"}});
+  await reconcileExpiredSpecialIds();
+  const identity=await getEffectiveUserId(user.id,user.publicId);
   const data={sessionVersion:user.sessionVersion,forcedLogoutAt:user.forcedLogoutAt?.toISOString()??null,isBanned:Boolean(ban),banReason:ban?.reason??null,banExpiresAt:ban?.expiresAt?.toISOString()??null};
   if(ban)return Response.json({success:true,data},{status:403});
   await prisma.user.update({where:{id:user.id},data:{lastLoginAt:new Date()}});
-  return Response.json({success:true,data:{...data,user:{id:user.publicId,name:user.name,phone:user.phone,email:user.email},sessionToken:mobileSession.createMobileSessionToken(user)}});
+  return Response.json({success:true,data:{...data,user:{id:identity.effectiveId,normalId:identity.normalId,specialId:identity.specialId,specialIdExpiresAt:identity.specialIdExpiresAt?.toISOString()??null,name:user.name,phone:user.phone,email:user.email},sessionToken:mobileSession.createMobileSessionToken(user)}});
 }

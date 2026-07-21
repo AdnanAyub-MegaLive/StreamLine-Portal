@@ -102,6 +102,9 @@ export async function POST(request) {
       data: {
         user: {
           id: user.publicId,
+          normalId: user.publicId,
+          specialId: null,
+          specialIdExpiresAt: null,
           name: user.name,
           email: user.email,
           phone: user.phone,

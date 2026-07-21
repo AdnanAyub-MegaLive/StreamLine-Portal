@@ -5,6 +5,7 @@ import { auth } from "../../auth";
 import { prisma } from "../lib/prisma";
 import { generateTemporaryPassword, hashPassword } from "../lib/password";
 import { emitToAudioRoom, emitToUser } from "../lib/realtime";
+import { assignDefinitionToUser, autoAssignEligibleSpecialId, normalizeSpecialId, reconcileExpiredSpecialIds } from "../lib/special-id";
 
 async function requireAdmin() {
   const session = await auth();
@@ -77,6 +78,10 @@ export async function updateUserAccount(publicId, changes) {
     description=`${admin.name} edited profile details for user ${publicId}`;
   }
   await logActivity(admin,{action,category:"USER_MANAGEMENT",entityType:"User",entityId:publicId,description,metadata:{...changes,reason:changes.auditReason||null}});
+  if(changes.vipLevel!==undefined){
+    const assignment=await autoAssignEligibleSpecialId(publicId,"VIP");
+    if(assignment)emitToUser(publicId,"special-id:assigned",{success:true,data:{specialId:assignment.specialId,expiresAt:assignment.expiresAt.toISOString(),source:"VIP"}});
+  }
   revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
 }
 
@@ -120,10 +125,14 @@ export async function adjustUserCoins(publicId, operation, amount, reason) {
   const value=BigInt(amount);
   const after=operation==="add" ? user.coinBalance+value : user.coinBalance>value ? user.coinBalance-value : 0n;
   await prisma.$transaction([
-    prisma.user.update({where:{id:user.id},data:{coinBalance:after}}),
+    prisma.user.update({where:{id:user.id},data:{coinBalance:after,...(operation==="add"?{totalTopUp:{increment:value}}:{})}}),
     prisma.coinAdjustment.create({data:{userId:user.id,adminId:admin.id,operation:operation==="add"?"ADD":"REMOVE",amount:value,balanceBefore:user.coinBalance,balanceAfter:after,reason}}),
   ]);
   await logActivity(admin,{action:operation==="add"?"ADD_COINS":"REMOVE_COINS",category:"FINANCE",entityType:"User",entityId:publicId,description:`${admin.name} ${operation==="add"?"added":"removed"} ${amount} coins ${operation==="add"?"to":"from"} user ${publicId}`,metadata:{amount,operation,reason,balanceAfter:Number(after)}});
+  if(operation==="add"){
+    const assignment=await autoAssignEligibleSpecialId(publicId,"TOP_UP");
+    if(assignment)emitToUser(publicId,"special-id:assigned",{success:true,data:{specialId:assignment.specialId,expiresAt:assignment.expiresAt.toISOString(),source:"TOP_UP"}});
+  }
   revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
   return Number(after);
 }
@@ -258,5 +267,37 @@ export async function controlAudioRoom(roomId, action, reason) {
   emitToAudioRoom(roomId,event,payload);
   emitToUser(room.owner.publicId,event,payload);
   await logActivity(admin,{action:`AUDIO_ROOM_${action}`,category:"USER_MANAGEMENT",entityType:"AudioRoom",entityId:roomId,description,metadata:{reason,ownerId:room.owner.publicId}});
+  revalidatePath("/users");
+}
+
+export async function createSpecialIdDefinition(values) {
+  const admin=await requireAdmin();
+  const code=normalizeSpecialId(values.code);
+  const category=String(values.category??"STANDARD").toUpperCase();
+  if(!["STANDARD","VIP","SVIP"].includes(category))throw new Error("INVALID_SPECIAL_ID_CATEGORY");
+  const duration=Number(values.defaultDurationMinutes);
+  if(!Number.isInteger(duration)||duration<1)throw new Error("INVALID_SPECIAL_ID_DURATION");
+  const definition=await prisma.specialIdDefinition.create({data:{code,category,minimumVipLevel:values.minimumVipLevel?Number(values.minimumVipLevel):null,minimumTopUpAmount:values.minimumTopUpAmount?BigInt(values.minimumTopUpAmount):null,defaultDurationMinutes:duration}});
+  await logActivity(admin,{action:"CREATE_SPECIAL_ID",category:"USER_MANAGEMENT",entityType:"SpecialId",entityId:code,description:`${admin.name} created ${category} Special ID ${code}`,metadata:{...values}});
+  revalidatePath("/users");
+  return {...definition,minimumTopUpAmount:Number(definition.minimumTopUpAmount??0)};
+}
+
+export async function assignSpecialId(publicId, definitionId, durationMinutes, reason) {
+  const admin=await requireAdmin();
+  const assignment=await assignDefinitionToUser({publicId,definitionId,durationMinutes,source:"ADMIN"});
+  await logActivity(admin,{action:"ASSIGN_SPECIAL_ID",category:"USER_MANAGEMENT",entityType:"User",entityId:publicId,description:`${admin.name} assigned Special ID ${assignment.specialId} to user ${publicId}`,metadata:{reason,durationMinutes,expiresAt:assignment.expiresAt.toISOString()}});
+  emitToUser(publicId,"special-id:assigned",{success:true,data:{normalId:publicId,specialId:assignment.specialId,effectiveId:assignment.specialId,expiresAt:assignment.expiresAt.toISOString(),source:"ADMIN"}});
+  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
+  return {id:assignment.id,specialId:assignment.specialId,expiresAt:assignment.expiresAt.toISOString()};
+}
+
+export async function revokeSpecialId(assignmentId, reason) {
+  const admin=await requireAdmin();
+  await reconcileExpiredSpecialIds();
+  const assignment=await prisma.specialIdAssignment.findUniqueOrThrow({where:{id:assignmentId},include:{user:true}});
+  await prisma.specialIdAssignment.update({where:{id:assignmentId},data:{status:"REVOKED",revokedAt:new Date()}});
+  await logActivity(admin,{action:"REVOKE_SPECIAL_ID",category:"USER_MANAGEMENT",entityType:"User",entityId:assignment.user.publicId,description:`${admin.name} revoked Special ID ${assignment.specialId} from user ${assignment.user.publicId}`,metadata:{reason}});
+  emitToUser(assignment.user.publicId,"special-id:revoked",{success:true,data:{normalId:assignment.user.publicId,effectiveId:assignment.user.publicId,specialId:null,reason}});
   revalidatePath("/users");
 }

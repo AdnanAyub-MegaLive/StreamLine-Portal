@@ -116,8 +116,18 @@ async function main() {
   if (await prisma.userAlbumItem.count() === 0) {
     for (const [index,user] of Object.values(savedUsers).entries()) await prisma.userAlbumItem.create({data:{userId:user.id,mediaUrl:`/uploads/albums/sample-${index+1}.jpg`,caption:"Profile album image",status:index===3?"PENDING":"APPROVED"}});
   }
+  const specialIdDefinitions=[
+    ["8888","SVIP",5,null,43200],
+    ["VIP55","VIP",3,null,20160],
+    ["TOPUP1","VIP",null,100000,10080],
+    ["STAR77","STANDARD",null,null,10080],
+  ];
+  for(const [code,category,minimumVipLevel,minimumTopUpAmount,defaultDurationMinutes] of specialIdDefinitions){
+    await prisma.specialIdDefinition.upsert({where:{code},update:{category,minimumVipLevel,minimumTopUpAmount,defaultDurationMinutes,active:true},create:{code,category,minimumVipLevel,minimumTopUpAmount,defaultDurationMinutes}});
+  }
   if (await prisma.specialIdAssignment.count() === 0) {
-    for (const [index,user] of Object.values(savedUsers).slice(0,4).entries()) await prisma.specialIdAssignment.create({data:{userId:user.id,specialId:`88${String(index+1).padStart(4,"0")}`,status:"ACTIVE",expiresAt:new Date("2027-01-01")}});
+    const definition=await prisma.specialIdDefinition.findUniqueOrThrow({where:{code:"STAR77"}});
+    await prisma.specialIdAssignment.create({data:{userId:savedUsers["USR-1048"].id,definitionId:definition.id,specialId:definition.code,status:"ACTIVE",source:"ADMIN",expiresAt:new Date("2027-01-01")}});
   }
   if (await prisma.gameLog.count() === 0) {
     const gameNames=["Lucky Wheel","Teen Patti","Fruit Party","Car Race"];
