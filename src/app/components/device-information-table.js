@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createBan } from "../database-actions";
 import usePortalData from "../hooks/use-portal-data";
+import { formatDurationMinutes as formatMinutes } from "../utils/duration";
 
 export default function DeviceInformationTable({ title = "Device Information", records = [] }) {
   const [selectedDevice, setSelectedDevice] = useState(null);
@@ -78,25 +79,6 @@ export function BanUserModal({ user, onClose, onBan }) {
 export function SecurityActionModal({title,description,confirm,tone,onClose,onSubmit}) {
   const buttonClass=tone==="emerald"?"bg-emerald-600 hover:bg-emerald-700":"bg-sky-600 hover:bg-sky-700";
   return <div className="fixed inset-0 z-50 grid place-items-center bg-[#061c1a]/60 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" onMouseDown={(event)=>{if(event.target===event.currentTarget)onClose();}}><div className="w-full max-w-115 rounded-2xl bg-white shadow-[0_24px_80px_rgba(0,0,0,.25)]"><div className="flex items-start justify-between border-b border-[#e5ecea] px-6 py-5"><div><h2 className="text-lg font-bold text-[#172f2b]">{title}</h2><p className="mt-1 text-xs text-[#748782]">{description}</p></div><button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-xl text-[#7c8f8a] hover:bg-[#f0f5f4]" aria-label="Close modal">×</button></div><form onSubmit={onSubmit} className="p-6"><label className="mb-2 block text-xs font-bold text-[#29423d]" htmlFor={`${tone}-action-reason`}>Reason</label><textarea id={`${tone}-action-reason`} name="reason" required rows="3" placeholder="Explain why this action is required..." className="w-full resize-none rounded-lg border border-[#dce6e4] px-3.5 py-3 text-xs outline-none focus:border-[#2ca89c]"/><div className="mt-6 flex justify-end gap-2 border-t border-[#e8efed] pt-5"><button type="button" onClick={onClose} className="h-10 rounded-lg border border-[#d7e3e0] px-4 text-xs font-bold text-[#5d716c]">Cancel</button><button type="submit" className={`h-10 rounded-lg px-5 text-xs font-bold text-white ${buttonClass}`}>{confirm}</button></div></form></div></div>;
-}
-
-function formatMinutes(totalMinutes) {
-  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return "";
-  const minutesPerDay = 1440;
-  const minutesPerMonth = minutesPerDay * 30;
-  const minutesPerYear = minutesPerMonth * 12;
-  const years = Math.floor(totalMinutes / minutesPerYear);
-  const months = Math.floor((totalMinutes % minutesPerYear) / minutesPerMonth);
-  const days = Math.floor((totalMinutes % minutesPerMonth) / minutesPerDay);
-  const hours = Math.floor((totalMinutes % minutesPerDay) / 60);
-  const minutes = totalMinutes % 60;
-  const parts = [];
-  if (years) parts.push(`${years} ${years === 1 ? "year" : "years"}`);
-  if (months) parts.push(`${months} ${months === 1 ? "month" : "months"}`);
-  if (days) parts.push(`${days} ${days === 1 ? "day" : "days"}`);
-  if (hours) parts.push(`${hours} ${hours === 1 ? "hour" : "hours"}`);
-  if (minutes) parts.push(`${minutes} ${minutes === 1 ? "minute" : "minutes"}`);
-  return parts.join(" ");
 }
 
 function BanDeviceModal({ device, onClose, onBan }) {
