@@ -24,6 +24,11 @@ const features = [
   ["Live History", "Review talent live sessions", "/talents?tab=Live%20History"],
   ["Talent Performance", "Review performance metrics", "/talents?tab=Performance"],
   ["Talent Violations", "Review compliance violations", "/talents?tab=Violations"],
+  ["Agency Management", "Manage agencies, rankings, targets and salaries", "/agencies"],
+  ["Agency Tasks", "Manage agency targets and tasks", "/agencies?tab=Agency%20Tasks"],
+  ["Monthly Agency Salary", "Review agency commission payments", "/agencies?tab=Monthly%20Salary"],
+  ["Talent Salaries", "Review agency talent salary calculations", "/agencies?tab=Talent%20Salaries"],
+  ["Agency Apply", "Review new agency applications", "/agencies?tab=Agency%20Apply"],
 ].map(([label, description, href]) => ({ label, description, href }));
 
 export default function FeatureSearch() {

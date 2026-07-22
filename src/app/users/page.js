@@ -9,7 +9,7 @@ import { reconcileExpiredBans } from "../../lib/ban-maintenance";
 import { reconcileExpiredSpecialIds } from "../../lib/special-id";
 import { reconcileExpiredAudioRoomRestrictions } from "../../lib/audio-room-maintenance";
 
-const nav = [["Overview", "/home"], ["Users / Senders", "/users"], ["Talent Management", "/talents"], ["Audit Logs", "/audit-logs"], ["Live streams", "#"], ["Reports", "#"]];
+const nav = [["Overview", "/home"], ["Users / Senders", "/users"], ["Talent Management", "/talents"], ["Agency Management", "/agencies"], ["Audit Logs", "/audit-logs"], ["Live streams", "#"], ["Reports", "#"]];
 
 export default async function UsersPage() {
   const session = await auth();

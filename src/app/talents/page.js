@@ -7,7 +7,7 @@ import FeatureSearch from "../components/feature-search";
 import { prisma } from "../../lib/prisma";
 import { reconcileExpiredBans } from "../../lib/ban-maintenance";
 
-const nav = [["Overview", "/home"], ["Users / Senders", "/users"], ["Talent Management", "/talents"], ["Audit Logs", "/audit-logs"], ["Live streams", "#"], ["Reports", "#"]];
+const nav = [["Overview", "/home"], ["Users / Senders", "/users"], ["Talent Management", "/talents"], ["Agency Management", "/agencies"], ["Audit Logs", "/audit-logs"], ["Live streams", "#"], ["Reports", "#"]];
 
 export default async function TalentsPage() {
   const session = await auth();
