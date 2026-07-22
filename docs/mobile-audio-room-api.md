@@ -78,6 +78,76 @@ socket.emit("audio-room:join", { roomId: result.data.roomId }, callback);
 socket.emit("audio-room:leave", { roomId: result.data.roomId }, callback);
 ```
 
+The successful `audio-room:join` acknowledgement identifies the actual owner
+and supplies the current room summary. Do not hardcode owner mode in the app.
+
+```json
+{
+  "success": true,
+  "data": {
+    "roomId": "ROOM-7F30A921B8C4",
+    "title": "Late Night Music Lounge",
+    "participantCount": 12,
+    "ownerId": "USR-1048",
+    "isOwner": false
+  }
+}
+```
+
+## Live seat-state relay
+
+Seat state is intentionally ephemeral. The owner remains the source of truth;
+the server validates ownership and relays changes without writing them to the
+database.
+
+Owner broadcasts the complete current state after every seat or note change:
+
+```js
+socket.emit("audio-room:seat-update", {
+  roomId,
+  seatRows,
+  notes
+}, callback);
+```
+
+Viewers listen for `audio-room:seat-update` and replace their local `seatRows`
+and `notes` with `payload.data`. A non-owner attempting to emit this event gets
+`OWNER_REQUIRED`. The sender must have joined the room first.
+
+When a viewer joins, the owner receives `audio-room:seat-sync-request` with
+`requesterId` and should immediately broadcast its current complete seat state.
+This gives newly joined viewers a snapshot without backend persistence.
+
+To request a seat, a viewer emits:
+
+```js
+socket.emit("audio-room:seat-request", {
+  roomId,
+  seatId,
+  note
+}, callback);
+```
+
+The owner receives `audio-room:seat-request`. Its payload contains the
+server-generated `requestId`, authenticated `requesterId`, requested `seatId`,
+and optional note. The owner accepts or rejects it with:
+
+```js
+socket.emit("audio-room:seat-response", {
+  roomId,
+  requestId,
+  requesterId,
+  seatId,
+  accepted: true,
+  reason: null
+}, callback);
+```
+
+The requester receives `audio-room:seat-response`. Only the verified room owner
+can respond, and the requester must still be connected to that audio room. On
+acceptance, the owner should update its own state and then emit the complete
+`audio-room:seat-update` snapshot to all viewers.
+
 Listen for administrator and lifecycle events:
 
 - `audio-room:idle`
