@@ -6,6 +6,7 @@ import { prisma } from "../lib/prisma";
 import { generateTemporaryPassword, hashPassword } from "../lib/password";
 import { emitToAudioRoom, emitToUser } from "../lib/realtime";
 import { assignDefinitionToUser, autoAssignEligibleSpecialId, normalizeSpecialId, reconcileExpiredSpecialIds } from "../lib/special-id";
+import { reconcileExpiredAudioRoomRestrictions } from "../lib/audio-room-maintenance";
 
 async function requireAdmin() {
   const session = await auth();
@@ -246,30 +247,45 @@ export async function deleteUserAccount(publicId, reason) {
   revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
 }
 
-export async function controlAudioRoom(roomId, action, reason) {
+export async function controlAudioRoom(roomId, action, reason, durationMinutes) {
   const admin=await requireAdmin();
+  await reconcileExpiredAudioRoomRestrictions(roomId);
   const room=await prisma.audioRoom.findUniqueOrThrow({where:{roomId},include:{owner:true}});
   const now=new Date();
+  const timed=["DISABLE_JOINING","BLOCK","TERMINATE"].includes(action);
+  const minutes=timed?Number(durationMinutes):null;
+  if(timed&&(!Number.isInteger(minutes)||minutes<1))throw new Error("INVALID_AUDIO_ROOM_DURATION");
+  const expiresAt=timed?new Date(now.getTime()+minutes*60000):null;
   let event;
   let description;
   if(action==="BLOCK"){
-    await prisma.audioRoom.update({where:{id:room.id},data:{isBlocked:true,joiningDisabled:true,status:"BLOCKED",blockedReason:reason,endedAt:now}});
+    await prisma.audioRoom.update({where:{id:room.id},data:{isBlocked:true,blockedUntil:expiresAt,status:"BLOCKED",blockedReason:reason,terminatedUntil:null,endedAt:now}});
     event="audio-room:blocked"; description=`${admin.name} blocked audio room ${roomId}`;
+  }else if(action==="UNBLOCK"){
+    await prisma.audioRoom.update({where:{id:room.id},data:{isBlocked:false,blockedUntil:null,blockedReason:null,status:"IDLE"}});
+    event="audio-room:unblocked"; description=`${admin.name} unblocked audio room ${roomId}`;
   }else if(action==="DISABLE_JOINING"){
-    await prisma.audioRoom.update({where:{id:room.id},data:{joiningDisabled:true}});
+    await prisma.audioRoom.update({where:{id:room.id},data:{joiningDisabled:true,joiningDisabledUntil:expiresAt}});
     event="audio-room:joining-disabled"; description=`${admin.name} disabled joining for audio room ${roomId}`;
+  }else if(action==="ENABLE_JOINING"){
+    await prisma.audioRoom.update({where:{id:room.id},data:{joiningDisabled:false,joiningDisabledUntil:null}});
+    event="audio-room:joining-enabled"; description=`${admin.name} enabled joining for audio room ${roomId}`;
   }else if(action==="TERMINATE"){
-    await prisma.audioRoom.update({where:{id:room.id},data:{status:"TERMINATED",joiningDisabled:true,endedAt:now}});
+    await prisma.audioRoom.update({where:{id:room.id},data:{status:"TERMINATED",terminatedUntil:expiresAt,isBlocked:false,blockedUntil:null,blockedReason:null,endedAt:now}});
     event="audio-room:terminated"; description=`${admin.name} terminated audio room ${roomId}`;
+  }else if(action==="RESTORE"){
+    await prisma.audioRoom.update({where:{id:room.id},data:{status:"IDLE",terminatedUntil:null}});
+    event="audio-room:restored"; description=`${admin.name} restored audio room ${roomId}`;
   }else if(action==="DELETE"){
-    await prisma.audioRoom.delete({where:{id:room.id}});
-    event="audio-room:deleted"; description=`${admin.name} permanently deleted audio room ${roomId}`;
+    throw new Error("AUDIO_ROOM_PERMANENT_DELETE_DISABLED");
   }else throw new Error("INVALID_AUDIO_ROOM_ACTION");
-  const payload={success:true,data:{roomId,action,reason,actedAt:now.toISOString()}};
+  if(timed)globalThis.portalScheduleAudioRoomRestriction?.(roomId,action,expiresAt);
+  const payload={success:true,data:{roomId,action,reason,durationMinutes:minutes,expiresAt:expiresAt?.toISOString()??null,actedAt:now.toISOString()}};
   emitToAudioRoom(roomId,event,payload);
   emitToUser(room.owner.publicId,event,payload);
-  await logActivity(admin,{action:`AUDIO_ROOM_${action}`,category:"USER_MANAGEMENT",entityType:"AudioRoom",entityId:roomId,description,metadata:{reason,ownerId:room.owner.publicId}});
+  await logActivity(admin,{action:`AUDIO_ROOM_${action}`,category:"USER_MANAGEMENT",entityType:"AudioRoom",entityId:roomId,description,metadata:{reason,ownerId:room.owner.publicId,durationMinutes:minutes,expiresAt:expiresAt?.toISOString()??null}});
   revalidatePath("/users");
+  return payload.data;
 }
 
 export async function createSpecialIdDefinition(values) {

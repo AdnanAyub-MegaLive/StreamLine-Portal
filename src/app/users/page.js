@@ -7,6 +7,7 @@ import FeatureSearch from "../components/feature-search";
 import { prisma } from "../../lib/prisma";
 import { reconcileExpiredBans } from "../../lib/ban-maintenance";
 import { reconcileExpiredSpecialIds } from "../../lib/special-id";
+import { reconcileExpiredAudioRoomRestrictions } from "../../lib/audio-room-maintenance";
 
 const nav = [["Overview", "/home"], ["Users / Senders", "/users"], ["Talent Management", "/talents"], ["Audit Logs", "/audit-logs"], ["Live streams", "#"], ["Reports", "#"]];
 
@@ -15,6 +16,7 @@ export default async function UsersPage() {
   if (!session?.user) redirect("/");
   await reconcileExpiredBans();
   await reconcileExpiredSpecialIds();
+  await reconcileExpiredAudioRoomRestrictions();
   const [users, devices, audioRooms, specialIdDefinitions] = await Promise.all([
     prisma.user.findMany({ where:{deletedAt:null},orderBy:{createdAt:"desc"}, include:{_count:{select:{sentGifts:true}},albumItems:{orderBy:{createdAt:"desc"}},specialIds:{include:{definition:true},orderBy:{createdAt:"desc"}},gameLogs:{orderBy:{createdAt:"desc"}}} }),
     prisma.device.findMany({ where:{userId:{not:null},user:{deletedAt:null}}, include:{user:true}, orderBy:{lastLoginAt:"desc"} }),
@@ -23,7 +25,7 @@ export default async function UsersPage() {
   ]);
   const userData = users.map((user) => {const activeSpecialId=user.specialIds.find((item)=>item.status==="ACTIVE"&&!item.revokedAt&&item.expiresAt&&item.expiresAt>new Date());return { id:user.publicId,effectiveId:activeSpecialId?.specialId??user.publicId,specialId:activeSpecialId?.specialId??null,specialIdExpiresAt:activeSpecialId?.expiresAt?.toISOString()??null,name:user.name,email:user.phone,phone:user.phone,actualEmail:user.email,passwordSet:Boolean(user.passwordHash),initials:user.name.split(" ").map((part)=>part[0]).join(""),role:display(user.role),status:display(user.status),joined:user.createdAt.toLocaleDateString("en-US",{month:"short",day:"2-digit",year:"numeric"}),streams:user._count.sentGifts,vipLevel:user.vipLevel,vip:user.vipLevel > 0,totalSpent:Number(user.totalSpent),totalTopUp:Number(user.totalTopUp),balance:Number(user.coinBalance),gifts:user._count.sentGifts }});
   const deviceData = devices.map((device) => ({ userId:device.user.publicId,userName:device.user.name,ip:device.lastLoginIp ?? "—",mac:device.macAddress,location:device.location ?? "Unknown",loginTime:device.lastLoginAt?.toLocaleString("en-US",{dateStyle:"medium",timeStyle:"medium"})??"Never",isUserBanned:device.user.status==="BANNED",isDeviceBanned:device.isBanned }));
-  const audioRoomData=audioRooms.map((room)=>({roomId:room.roomId,title:room.title,ownerId:room.owner.publicId,owner:room.owner.name,status:room.status,participantCount:room.participantCount,startedAt:room.startedAt.toLocaleString("en-US"),audioUrl:room.liveAudioUrl??room.recordingUrl,joiningDisabled:room.joiningDisabled,isBlocked:room.isBlocked}));
+  const audioRoomData=audioRooms.map((room)=>({roomId:room.roomId,title:room.title,ownerId:room.owner.publicId,owner:room.owner.name,status:room.status,participantCount:room.participantCount,startedAt:room.startedAt.toLocaleString("en-US"),audioUrl:room.liveAudioUrl??room.recordingUrl,joiningDisabled:room.joiningDisabled,joiningDisabledUntil:room.joiningDisabledUntil?.toISOString()??null,isBlocked:room.isBlocked,blockedUntil:room.blockedUntil?.toISOString()??null,terminatedUntil:room.terminatedUntil?.toISOString()??null}));
   const userModules={
     levels:users.map((user)=>({id:user.publicId,userId:user.publicId,user:user.name,level:levelFromSpend(user.totalSpent),totalSpent:Number(user.totalSpent).toLocaleString(),vipLevel:user.vipLevel,progress:`${Number(user.totalSpent)%50000} / 50,000`})),
     albums:users.flatMap((user)=>user.albumItems.map((item)=>({id:item.id,userId:user.publicId,user:user.name,type:item.mediaType,caption:item.caption??"—",status:item.status,uploaded:item.createdAt.toLocaleDateString("en-US")}))),

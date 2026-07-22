@@ -377,8 +377,11 @@ model AudioRoom {
   recordingUrl     String?
   participantCount Int      @default(0)
   joiningDisabled  Boolean  @default(false)
+  joiningDisabledUntil DateTime?
   isBlocked        Boolean  @default(false)
   blockedReason    String?
+  blockedUntil     DateTime?
+  terminatedUntil  DateTime?
   startedAt        DateTime @default(now())
   endedAt          DateTime?
   createdAt        DateTime @default(now())

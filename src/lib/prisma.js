@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis;
-const prismaSchemaVersion = "2026-07-20-special-id-entitlements-v5";
+const prismaSchemaVersion = "2026-07-22-timed-audio-room-controls-v6";
 const requiredUserFields = ["sessionVersion", "forcedLogoutAt", "passwordHash", "deletedAt", "totalTopUp"];
 
 const createPrismaClient = () => new PrismaClient({
@@ -10,8 +10,10 @@ const createPrismaClient = () => new PrismaClient({
 });
 
 const cachedUserFields = globalForPrisma.prisma?._runtimeDataModel?.models?.User?.fields?.map((field) => field.name) ?? [];
+const cachedAudioRoomFields = globalForPrisma.prisma?._runtimeDataModel?.models?.AudioRoom?.fields?.map((field) => field.name) ?? [];
 const cachedClientMatchesSchema = globalForPrisma.prismaSchemaVersion === prismaSchemaVersion
   && requiredUserFields.every((field) => cachedUserFields.includes(field))
+  && ["joiningDisabledUntil","blockedUntil","terminatedUntil"].every((field)=>cachedAudioRoomFields.includes(field))
   && ["userAlbumItem","specialIdAssignment","specialIdDefinition","gameLog","liveSession","talentPerformance","talentViolation","audioRoom"].every((model)=>Boolean(globalForPrisma.prisma?.[model]));
 
 // Fast Refresh keeps globalThis alive. Reuse only a client that contains every

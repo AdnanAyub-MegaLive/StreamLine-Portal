@@ -31,10 +31,12 @@ export async function assignDefinitionToUser({publicId,definitionId,durationMinu
   const minutes=Number(durationMinutes||definition.defaultDurationMinutes);
   if(!Number.isInteger(minutes)||minutes<1)throw new Error("INVALID_SPECIAL_ID_DURATION");
   const now=new Date();
-  return prisma.$transaction(async(tx)=>{
+  const assignment=await prisma.$transaction(async(tx)=>{
     await tx.specialIdAssignment.updateMany({where:{userId:user.id,status:"ACTIVE"},data:{status:"REPLACED",revokedAt:now}});
     return tx.specialIdAssignment.create({data:{userId:user.id,definitionId:definition.id,specialId:definition.code,status:"ACTIVE",source,startsAt:now,expiresAt:new Date(now.getTime()+minutes*60000)}});
   });
+  globalThis.portalScheduleSpecialIdExpiry?.(assignment.id,assignment.expiresAt);
+  return assignment;
 }
 
 export async function autoAssignEligibleSpecialId(publicId, source) {

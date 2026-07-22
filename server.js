@@ -13,6 +13,7 @@ const handle=app.getRequestHandler();
 
 app.prepare().then(async()=>{
   const {prisma}=await import("./src/lib/prisma.js");
+  const {reconcileExpiredAudioRoomRestrictions}=await import("./src/lib/audio-room-maintenance.js");
   const httpServer=createServer((request,response)=>handle(request,response));
   const io=new Server(httpServer,{cors:{origin:process.env.MOBILE_APP_ORIGIN||"*",methods:["GET","POST"]}});
   globalThis.portalIo=io;
@@ -36,6 +37,57 @@ app.prepare().then(async()=>{
   globalThis.portalScheduleBanExpiry=scheduleBanExpiry;
   const timedBans=await prisma.ban.findMany({where:{target:"USER",userId:{not:null},revokedAt:null,expiresAt:{gt:new Date()}},include:{user:{select:{publicId:true}}}});
   for(const ban of timedBans)scheduleBanExpiry(ban.user.publicId,ban.expiresAt);
+
+  const scheduleSpecialIdExpiry=(assignmentId,expiresAt)=>{
+    if(!expiresAt)return;
+    const remaining=new Date(expiresAt).getTime()-Date.now();
+    if(remaining>2147483647)return setTimeout(()=>scheduleSpecialIdExpiry(assignmentId,expiresAt),2147483647);
+    setTimeout(async()=>{
+      try{
+        const assignment=await prisma.specialIdAssignment.findUnique({where:{id:assignmentId},include:{user:{select:{publicId:true}}}});
+        if(!assignment||assignment.status!=="ACTIVE"||assignment.revokedAt)return;
+        const now=new Date();
+        if(assignment.expiresAt&&assignment.expiresAt>now)return scheduleSpecialIdExpiry(assignment.id,assignment.expiresAt);
+        const expired=await prisma.specialIdAssignment.updateMany({where:{id:assignment.id,status:"ACTIVE",revokedAt:null,expiresAt:{lte:now}},data:{status:"EXPIRED"}});
+        if(!expired.count)return;
+        await prisma.auditLog.create({data:{action:"SPECIAL_ID_EXPIRED",category:"USER_MANAGEMENT",entityType:"User",entityId:assignment.user.publicId,description:`Special ID ${assignment.specialId} expired for user ${assignment.user.publicId}; the normal ID was restored.`,metadata:{source:"SYSTEM_TIMER",specialId:assignment.specialId,expiredAt:now.toISOString()}}});
+        io.to(`user:${assignment.user.publicId}`).emit("special-id:expired",{success:true,data:{normalId:assignment.user.publicId,effectiveId:assignment.user.publicId,specialId:null,expiredSpecialId:assignment.specialId,expiredAt:now.toISOString()}});
+      }catch(error){console.error("Special ID expiry failed",error);}
+    },Math.max(remaining,0));
+  };
+  globalThis.portalScheduleSpecialIdExpiry=scheduleSpecialIdExpiry;
+  const now=new Date();
+  await prisma.specialIdAssignment.updateMany({where:{status:"ACTIVE",expiresAt:{lte:now}},data:{status:"EXPIRED"}});
+  const timedSpecialIds=await prisma.specialIdAssignment.findMany({where:{status:"ACTIVE",revokedAt:null,expiresAt:{gt:now}},select:{id:true,expiresAt:true}});
+  for(const assignment of timedSpecialIds)scheduleSpecialIdExpiry(assignment.id,assignment.expiresAt);
+
+  const scheduleAudioRoomRestriction=(roomId,action,expiresAt)=>{
+    if(!expiresAt)return;
+    const remaining=new Date(expiresAt).getTime()-Date.now();
+    if(remaining>2147483647)return setTimeout(()=>scheduleAudioRoomRestriction(roomId,action,expiresAt),2147483647);
+    setTimeout(async()=>{
+      try{
+        const result=await reconcileExpiredAudioRoomRestrictions(roomId);
+        const room=await prisma.audioRoom.findUnique({where:{roomId},include:{owner:{select:{publicId:true}}}});
+        if(!room)return;
+        const definitions={DISABLE_JOINING:[result.joiningEnabled,"audio-room:joining-enabled","ENABLE_JOINING"],BLOCK:[result.unblocked,"audio-room:unblocked","UNBLOCK"],TERMINATE:[result.restored,"audio-room:restored","RESTORE"]};
+        const [changed,event,resolvedAction]=definitions[action]??[];
+        if(!changed)return;
+        const payload={success:true,data:{roomId,action:resolvedAction,reason:"Scheduled restriction expired",expiredAt:new Date().toISOString()}};
+        io.to(`audio-room:${roomId}`).emit(event,payload);
+        io.to(`user:${room.owner.publicId}`).emit(event,payload);
+        await prisma.auditLog.create({data:{action:`AUDIO_ROOM_${resolvedAction}`,category:"USER_MANAGEMENT",entityType:"AudioRoom",entityId:roomId,description:`Timed ${action.toLowerCase().replaceAll("_"," ")} expired for audio room ${roomId}.`,metadata:{source:"SYSTEM_TIMER",ownerId:room.owner.publicId}}});
+      }catch(error){console.error("Audio room restriction expiry failed",error);}
+    },Math.max(remaining,0));
+  };
+  globalThis.portalScheduleAudioRoomRestriction=scheduleAudioRoomRestriction;
+  await reconcileExpiredAudioRoomRestrictions();
+  const restrictedRooms=await prisma.audioRoom.findMany({where:{OR:[{joiningDisabled:true,joiningDisabledUntil:{gt:new Date()}},{isBlocked:true,blockedUntil:{gt:new Date()}},{status:"TERMINATED",terminatedUntil:{gt:new Date()}}]},select:{roomId:true,joiningDisabledUntil:true,blockedUntil:true,terminatedUntil:true}});
+  for(const room of restrictedRooms){
+    if(room.joiningDisabledUntil)scheduleAudioRoomRestriction(room.roomId,"DISABLE_JOINING",room.joiningDisabledUntil);
+    if(room.blockedUntil)scheduleAudioRoomRestriction(room.roomId,"BLOCK",room.blockedUntil);
+    if(room.terminatedUntil)scheduleAudioRoomRestriction(room.roomId,"TERMINATE",room.terminatedUntil);
+  }
 
   const releaseEmptyAudioRoom=async(roomId)=>{
     const socketRoom=`audio-room:${roomId}`;
@@ -68,8 +120,14 @@ app.prepare().then(async()=>{
     const ban=await prisma.ban.findFirst({where:{userId:user.id,target:"USER",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:new Date()}}]},orderBy:{createdAt:"desc"}});
     socket.emit("session:status",{success:true,data:{sessionVersion:user.sessionVersion,forcedLogoutAt:user.forcedLogoutAt?.toISOString()??null,isBanned:Boolean(ban),banReason:ban?.reason??null,banExpiresAt:ban?.expiresAt?.toISOString()??null}});
     socket.on("audio-room:join",async({roomId}={},ack=()=>{})=>{
-      const room=await prisma.audioRoom.findUnique({where:{roomId:String(roomId??"")}});
-      if(!room||room.isBlocked||room.joiningDisabled||room.status!=="LIVE")return ack({success:false,error:{code:"ROOM_UNAVAILABLE"}});
+      const requestedRoomId=String(roomId??"");
+      await reconcileExpiredAudioRoomRestrictions(requestedRoomId);
+      const room=await prisma.audioRoom.findUnique({where:{roomId:requestedRoomId}});
+      if(!room)return ack({success:false,error:{code:"ROOM_UNAVAILABLE"}});
+      if(room.isBlocked)return ack({success:false,error:{code:"ROOM_BLOCKED",details:{reason:room.blockedReason,expiresAt:room.blockedUntil?.toISOString()??null}}});
+      if(room.status==="TERMINATED")return ack({success:false,error:{code:"ROOM_TERMINATED",details:{expiresAt:room.terminatedUntil?.toISOString()??null}}});
+      if(room.status!=="LIVE")return ack({success:false,error:{code:"ROOM_UNAVAILABLE"}});
+      if(room.joiningDisabled&&room.ownerId!==user.id)return ack({success:false,error:{code:"ROOM_OWNER_ONLY",details:{expiresAt:room.joiningDisabledUntil?.toISOString()??null}}});
       socket.join(`audio-room:${room.roomId}`);
       const participantCount=io.sockets.adapter.rooms.get(`audio-room:${room.roomId}`)?.size??1;
       await prisma.audioRoom.update({where:{id:room.id},data:{participantCount}});

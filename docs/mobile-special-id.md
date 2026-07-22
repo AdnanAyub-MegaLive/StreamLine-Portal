@@ -19,5 +19,8 @@ Socket.IO events:
 
 - `special-id:assigned`: immediately replace the displayed ID using `data.effectiveId` or `data.specialId`.
 - `special-id:revoked`: immediately restore `data.normalId`.
+- `special-id:expired`: the allotted time ended; immediately replace the displayed ID with `data.normalId`. `data.expiredSpecialId` contains the ID that expired.
 
 VIP changes and qualifying coin top-ups can automatically assign an available VIP/SVIP ID based on the rules configured by administrators.
+
+Expiry is scheduled by the backend at assignment time and recovered automatically after a server restart. It does not depend on the app polling the session-status endpoint.

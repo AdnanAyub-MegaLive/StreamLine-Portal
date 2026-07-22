@@ -86,4 +86,52 @@ Listen for administrator and lifecycle events:
 - `audio-room:terminated`
 - `audio-room:deleted`
 
+Current moderation behavior:
+
+- `audio-room:joining-disabled`: only the room owner may join until `expiresAt`. Other users receive `ROOM_OWNER_ONLY` from the Socket.IO join callback.
+- `audio-room:joining-enabled`: owner-only mode was manually removed or its timer expired.
+- `audio-room:blocked`: nobody, including the owner, may start or join until `expiresAt`.
+- `audio-room:unblocked`: the timed block was manually removed or expired.
+- `audio-room:terminated`: the current room is unavailable to everyone until `expiresAt`.
+- `audio-room:restored`: termination was manually removed or expired. The room returns to `IDLE` and the owner can start it again.
+
+Audio recording playback and permanent room deletion are currently disabled in the admin portal. The database fields and lifecycle event remain available for later re-enabling.
+
 After `audio-room:deleted`, discard the old ID locally. The next `START` request creates and returns a new persistent ID.
+
+## Discover live rooms
+
+Use this endpoint for the mobile app's Trending Parties list.
+
+```http
+GET /api/audio-rooms/discover
+Authorization: Bearer <sessionToken>
+```
+
+It returns up to 50 currently live rooms, ordered by participant count and then
+start time. The caller's own room, blocked rooms, rooms with joining disabled,
+and rooms owned by unavailable accounts are excluded.
+
+```json
+{
+  "success": true,
+  "data": {
+    "rooms": [
+      {
+        "roomId": "ROOM-7F30A921B8C4",
+        "title": "Late Night Music Lounge",
+        "participantCount": 12,
+        "startedAt": "2026-07-22T08:00:00.000Z",
+        "owner": {
+          "id": "USR-1048",
+          "name": "Aisha Khan",
+          "profileImage": null
+        }
+      }
+    ]
+  }
+}
+```
+
+An invalid or expired token returns HTTP `401` with the error code
+`INVALID_SESSION`.
