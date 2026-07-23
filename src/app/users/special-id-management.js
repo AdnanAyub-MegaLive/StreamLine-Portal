@@ -12,8 +12,19 @@ export default function SpecialIdAssignments({initialAssignments}){
   const [selected,setSelected]=useState(null);
   const active=rows.filter((row)=>row.status==="ACTIVE").length;
   return <section className="overflow-hidden rounded-2xl border border-[#dce8e5] bg-white">
-    <div className="flex flex-col gap-3 border-b border-[#e5ecea] p-5 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-base font-bold">Special ID assignments</h2><p className="mt-1 text-xs text-[#748782]">{active} active assignment(s). Expired IDs automatically become available to another user.</p></div></div>
-    <div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-xs"><thead><tr className="bg-[#f8fbfa] text-[10px] tracking-wider text-[#7b8e89] uppercase"><th className="px-5 py-3.5">Special ID</th><th>User</th><th>Category</th><th>Source</th><th>Status</th><th>Assigned time</th><th>Starts</th><th>Expires</th><th className="px-5 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#edf2f1]">{rows.map((row)=><tr key={row.id}><td className="px-5 py-4 font-mono font-bold text-[#087f74]">{row.specialId}</td><td><p className="font-bold">{row.user}</p><p className="text-[10px] text-[#83948f]">Normal ID: {row.userId}</p></td><td>{row.category}</td><td>{row.source}</td><td><span className={`rounded-full px-2 py-1 text-[9px] font-bold ${row.status==="ACTIVE"?"bg-emerald-50 text-emerald-700":"bg-slate-100 text-slate-600"}`}>{row.status}</span></td><td>{row.durationMinutes?<div><p className="font-semibold">{formatDurationMinutes(row.durationMinutes)}</p><p className="text-[9px] text-[#83948f]">{row.durationMinutes.toLocaleString()} minutes</p></div>:"—"}</td><td>{row.starts}</td><td>{row.expires}</td><td className="px-5 text-right">{row.status==="ACTIVE"&&<button onClick={()=>setSelected(row)} className="rounded-lg border border-red-200 px-3 py-2 text-[10px] font-bold text-red-600 hover:bg-red-50">Revoke</button>}</td></tr>)}</tbody></table></div>
+    <div className="flex flex-col gap-3 border-b border-[#e5ecea] p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 className="text-base font-bold">Special ID assignments</h2><p className="mt-1 text-xs text-[#748782]">{active} active assignment(s). Expired IDs automatically become available to another user.</p>
+      </div>
+    </div>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1050px] text-left text-xs">
+        <thead>
+          <tr className="bg-[#f8fbfa] text-[10px] tracking-wider text-[#7b8e89] uppercase">
+            <th className="px-5 py-3.5">Special ID</th>
+            <th>User</th>
+            <th>Category</th>
+            <th>Source</th><th>Status</th><th>Assigned time</th><th>Starts</th><th>Expires</th><th className="px-5 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#edf2f1]">{rows.map((row)=><tr key={row.id}><td className="px-5 py-4 font-mono font-bold text-[#087f74]">{row.specialId}</td><td><p className="font-bold">{row.user}</p><p className="text-[10px] text-[#83948f]">Normal ID: {row.userId}</p></td><td>{row.category}</td><td>{row.source}</td><td><span className={`rounded-full px-2 py-1 text-[9px] font-bold ${row.status==="ACTIVE"?"bg-emerald-50 text-emerald-700":"bg-slate-100 text-slate-600"}`}>{row.status}</span></td><td>{row.durationMinutes?<div><p className="font-semibold">{formatDurationMinutes(row.durationMinutes)}</p><p className="text-[9px] text-[#83948f]">{row.durationMinutes.toLocaleString()} minutes</p></div>:"—"}</td><td>{row.starts}</td><td>{row.expires}</td><td className="px-5 text-right">{row.status==="ACTIVE"&&<button onClick={()=>setSelected(row)} className="rounded-lg border border-red-200 px-3 py-2 text-[10px] font-bold text-red-600 hover:bg-red-50">Revoke</button>}</td></tr>)}</tbody></table></div>
     {selected&&<ReasonModal title="Revoke Special ID" subtitle={`${selected.specialId} · ${selected.userId}`} confirm="Revoke ID" onClose={()=>setSelected(null)} onSubmit={async(reason)=>{await revokeSpecialId(selected.id,reason);setRows((current)=>current.map((row)=>row.id===selected.id?{...row,status:"REVOKED"}:row));setSelected(null);}}/>}
   </section>;
 }

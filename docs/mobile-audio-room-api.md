@@ -129,8 +129,27 @@ socket.emit("audio-room:seat-request", {
 ```
 
 The owner receives `audio-room:seat-request`. Its payload contains the
-server-generated `requestId`, authenticated `requesterId`, requested `seatId`,
-and optional note. The owner accepts or rejects it with:
+server-generated `requestId`, authenticated `requesterId`, trusted
+`requesterName`, optional `requesterProfileImage`, requested `seatId`, and
+optional note:
+
+```json
+{
+  "success": true,
+  "data": {
+    "requestId": "b28ac63d-7b82-48e8-967f-e27f62d197c7",
+    "roomId": "ROOM-7F30A921B8C4",
+    "requesterId": "USR-2048",
+    "requesterName": "Aisha Khan",
+    "requesterProfileImage": null,
+    "seatId": "row0-seat1",
+    "note": null,
+    "requestedAt": "2026-07-23T08:00:00.000Z"
+  }
+}
+```
+
+The owner accepts or rejects it with:
 
 ```js
 socket.emit("audio-room:seat-response", {

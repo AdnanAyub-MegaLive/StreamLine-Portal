@@ -161,7 +161,7 @@ app.prepare().then(async()=>{
         if(room.owner.publicId===userId)return ack({success:false,error:{code:"VIEWER_REQUIRED"}});
         if(!socket.rooms.has(`audio-room:${id}`))return ack({success:false,error:{code:"JOIN_ROOM_FIRST"}});
         const requestId=randomUUID();
-        const data={requestId,roomId:id,requesterId:userId,seatId:seatId??null,note:typeof note==="string"?note.slice(0,500):null,requestedAt:new Date().toISOString()};
+        const data={requestId,roomId:id,requesterId:userId,requesterName:user.name,requesterProfileImage:user.profileImage??null,seatId:seatId??null,note:typeof note==="string"?note.slice(0,500):null,requestedAt:new Date().toISOString()};
         io.to(`user:${room.owner.publicId}`).emit("audio-room:seat-request",{success:true,data});
         ack({success:true,data:{requestId,roomId:id,status:"PENDING"}});
       }catch(error){
