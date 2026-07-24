@@ -108,11 +108,32 @@ model User {
   specialIds      SpecialIdAssignment[]
   gameLogs        GameLog[]
   audioRooms      AudioRoom[]
+  assignedUploads UploadAsset[]
   totalTopUp      BigInt            @default(0)
 
   @@index([status])
   @@index([vipLevel])
   @@index([deletedAt])
+}
+
+model UploadAsset {
+  id               String   @id @default(cuid())
+  publicId         String   @unique
+  name             String
+  category         String
+  fileName         String
+  mimeType         String
+  fileSize         Int
+  fileData         Bytes
+  assignedUserId   String?
+  isRoomBackground Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  assignedUser     User?    @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  @@index([category, createdAt])
+  @@index([assignedUserId, category])
+  @@index([isRoomBackground, createdAt])
 }
 
 model Talent {
