@@ -1,6 +1,6 @@
 import { prisma } from "../../../../lib/prisma";
 import mobileSession from "../../../../lib/mobile-session.cjs";
-import { serializeUploadAsset, validUploadCategories } from "../../../../lib/upload-assets";
+import { createSignedAssetUrl, serializeUploadAsset, validUploadCategories } from "../../../../lib/upload-assets";
 
 const corsHeaders={"Access-Control-Allow-Origin":process.env.MOBILE_APP_ORIGIN||"*","Access-Control-Allow-Methods":"GET, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization"};
 const json=(body,status=200)=>Response.json(body,{status,headers:corsHeaders});
@@ -17,8 +17,12 @@ export async function GET(request) {
     if(category&&!validUploadCategories.has(category))return json({success:false,error:{code:"INVALID_CATEGORY",message:"Upload category is invalid."}},422);
     const roomBackground=url.searchParams.get("roomBackground")==="true";
     const assets=await prisma.uploadAsset.findMany({where:{...(category?{category}:{}),...(roomBackground?{isRoomBackground:true}:{}),OR:[{assignedUserId:null},{assignedUserId:user.id}]},include:{assignedUser:{select:{publicId:true,name:true,profileImage:true}}},orderBy:{createdAt:"desc"},take:200});
-    const origin=url.origin;
-    return json({success:true,data:{assets:assets.map((asset)=>serializeUploadAsset(asset,`${origin}/api/uploads/${asset.publicId}/file`))}});
+    const forwardedHost=request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+    const host=forwardedHost||request.headers.get("host");
+    const forwardedProtocol=request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const protocol=forwardedProtocol||url.protocol.replace(":","");
+    const origin=(process.env.MOBILE_API_BASE_URL||(host?`${protocol}://${host}`:url.origin)).replace(/\/$/,"");
+    return json({success:true,data:{assets:assets.map((asset)=>serializeUploadAsset(asset,createSignedAssetUrl(origin,asset.publicId,payload.userId,payload.sessionVersion)))}});
   } catch {
     return json({success:false,error:{code:"INVALID_SESSION",message:"The mobile session is invalid or expired."}},401);
   }

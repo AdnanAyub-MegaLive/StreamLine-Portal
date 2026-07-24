@@ -1,6 +1,7 @@
 import { auth } from "../../../../../../auth";
 import { prisma } from "../../../../../lib/prisma";
 import mobileSession from "../../../../../lib/mobile-session.cjs";
+import { verifySignedAssetUrl } from "../../../../../lib/upload-assets";
 
 export async function GET(request,{params}) {
   const {assetId}=await params;
@@ -10,8 +11,9 @@ export async function GET(request,{params}) {
   const session=await auth();
   if(!session?.user){
     try {
-      const token=request.headers.get("authorization")?.replace(/^Bearer\s+/i,"");
-      const payload=mobileSession.verifyMobileSessionToken(token);
+      const url=new URL(request.url);
+      const signed=verifySignedAssetUrl(assetId,{userId:url.searchParams.get("uid"),sessionVersion:url.searchParams.get("sv"),expiresAt:url.searchParams.get("exp"),signature:url.searchParams.get("sig")});
+      const payload=signed??mobileSession.verifyMobileSessionToken(request.headers.get("authorization")?.replace(/^Bearer\s+/i,""));
       const user=await prisma.user.findUnique({where:{publicId:payload.userId},select:{id:true,deletedAt:true,sessionVersion:true}});
       if(!user||user.deletedAt||user.sessionVersion!==payload.sessionVersion||asset.assignedUserId&&asset.assignedUserId!==user.id)throw new Error("FORBIDDEN");
     } catch {

@@ -17,13 +17,13 @@ export function OPTIONS() {
 }
 
 async function authenticatedUser(request) {
-  const token = mobileSession.bearerToken(request);
-  const payload = mobileSession.verifyMobileSession(token);
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const payload = mobileSession.verifyMobileSessionToken(token);
 
-  if (!payload?.sub) throw new Error("INVALID_SESSION");
+  if (!payload?.userId) throw new Error("INVALID_SESSION");
 
   const user = await prisma.user.findUnique({
-    where: { publicId: payload.sub },
+    where: { publicId: payload.userId },
     select: {
       id: true,
       deletedAt: true,
