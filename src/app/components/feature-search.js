@@ -29,6 +29,15 @@ const features = [
   ["Monthly Agency Salary", "Review agency commission payments", "/agencies?tab=Monthly%20Salary"],
   ["Talent Salaries", "Review agency talent salary calculations", "/agencies?tab=Talent%20Salaries"],
   ["Agency Apply", "Review new agency applications", "/agencies?tab=Agency%20Apply"],
+  ["Uploads", "Manage mobile application visual assets", "/uploads"],
+  ["Banners", "Upload and preview application banners", "/uploads"],
+  ["Frames", "Upload and preview profile frames", "/uploads"],
+  ["Entrances", "Upload and preview entrance effects", "/uploads"],
+  ["Tail-lights", "Upload and preview tail-light effects", "/uploads"],
+  ["Upload Gifts", "Upload and preview gift assets", "/uploads"],
+  ["Badges", "Upload and preview user badges", "/uploads"],
+  ["Chat Boxes", "Upload and preview chat boxes", "/uploads"],
+  ["Room Backgrounds", "Upload and preview audio-room backgrounds", "/uploads"],
 ].map(([label, description, href]) => ({ label, description, href }));
 
 export default function FeatureSearch() {

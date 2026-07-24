@@ -4,7 +4,7 @@ import { auth, signOut } from "../../../auth";
 import FeatureSearch from "../components/feature-search";
 import AgencyTabs from "./agency-tabs";
 
-const nav = [["Overview", "/home"], ["Users / Senders", "/users"], ["Talent Management", "/talents"], ["Agency Management", "/agencies"], ["Audit Logs", "/audit-logs"], ["Live streams", "#"], ["Reports", "#"]];
+const nav = [["Overview", "/home"], ["Users / Senders", "/users"], ["Talent Management", "/talents"], ["Agency Management", "/agencies"], ["Uploads", "/uploads"], ["Audit Logs", "/audit-logs"], ["Live streams", "#"], ["Reports", "#"]];
 
 export default async function AgenciesPage() {
   const session = await auth();

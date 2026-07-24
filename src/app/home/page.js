@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { auth, signOut } from "../../../auth";
 import FeatureSearch from "../components/feature-search";
 
-const navItems = [{ label: "Overview", href: "/home" }, { label: "Users / Senders", href: "/users" }, { label: "Talent Management", href: "/talents" }, { label: "Agency Management", href: "/agencies" }, { label: "Audit Logs", href: "/audit-logs" }, { label: "Audio rooms", href: "#" }, { label: "Reports", href: "#" }];
+const navItems = [{ label: "Overview", href: "/home" }, { label: "Users / Senders", href: "/users" }, { label: "Talent Management", href: "/talents" }, { label: "Agency Management", href: "/agencies" }, { label: "Uploads", href: "/uploads" }, { label: "Audit Logs", href: "/audit-logs" }, { label: "Audio rooms", href: "#" }, { label: "Reports", href: "#" }];
 
 export default async function DashboardHome() {
   const session = await auth();

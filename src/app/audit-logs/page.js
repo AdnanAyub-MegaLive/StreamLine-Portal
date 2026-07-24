@@ -5,7 +5,7 @@ import { prisma } from "../../lib/prisma";
 import FeatureSearch from "../components/feature-search";
 import AuditLogTable from "./audit-log-table";
 
-const nav=[["Overview","/home"],["Users / Senders","/users"],["Talent Management","/talents"],["Agency Management","/agencies"],["Audit Logs","/audit-logs"],["Live streams","#"],["Reports","#"]];
+const nav=[["Overview","/home"],["Users / Senders","/users"],["Talent Management","/talents"],["Agency Management","/agencies"],["Uploads","/uploads"],["Audit Logs","/audit-logs"],["Live streams","#"],["Reports","#"]];
 
 export default async function AuditLogsPage() {
   const session=await auth(); if(!session?.user)redirect("/");
