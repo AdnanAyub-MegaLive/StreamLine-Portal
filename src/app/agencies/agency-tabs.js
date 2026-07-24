@@ -25,7 +25,7 @@ export default function AgencyTabs() {
 }
 
 function AgencyHome() {
-  return <div className="space-y-6"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[["Total agencies","42","38 currently active"],["Agency talents","1,284","Across all agencies"],["Monthly gifts","27.8M","104% of target"],["Pending applications","8","Awaiting review"]].map(([label,value,note])=><div key={label} className="rounded-xl border border-[#dfe9e7] bg-white p-5"><p className="text-[11px] font-semibold text-[#768984]">{label}</p><p className="mt-2 text-2xl font-bold">{value}</p><p className="mt-2 text-[10px] text-[#429387]">{note}</p></div>)}</div><div className="grid gap-6 xl:grid-cols-2"><AgencyTable/><TalentTable/></div></div>;
+  return <div className="space-y-6"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{[["Total agencies","42","38 currently active"],["Agency talents","1,284","Across all agencies"],["Total agency recharge","PKR 48.6M","Recharge by all agencies"],["Monthly gifts","27.8M","104% of target"],["Pending applications","8","Awaiting review"]].map(([label,value,note])=><div key={label} className="rounded-xl border border-[#dfe9e7] bg-white p-5"><p className="text-[11px] font-semibold text-[#768984]">{label}</p><p className="mt-2 text-2xl font-bold">{value}</p><p className="mt-2 text-[10px] text-[#429387]">{note}</p></div>)}</div><div className="grid gap-6 xl:grid-cols-2"><AgencyTable/><TalentTable/></div></div>;
 }
 
 function AgencyTable() {

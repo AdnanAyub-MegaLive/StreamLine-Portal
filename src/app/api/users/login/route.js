@@ -3,6 +3,7 @@ import { verifyPassword } from "../../../../lib/password";
 import mobileSession from "../../../../lib/mobile-session.cjs";
 import { getEffectiveUserId, reconcileExpiredSpecialIds } from "../../../../lib/special-id";
 import { reconcileExpiredBans } from "../../../../lib/ban-maintenance";
+import { formatDateOnly } from "../../../../lib/date-only";
 
 const allowedOrigin=process.env.MOBILE_APP_ORIGIN||"*";
 const corsHeaders={"Access-Control-Allow-Origin":allowedOrigin,"Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization"};
@@ -43,5 +44,5 @@ export async function POST(request) {
     const deviceBan=await prisma.ban.findFirst({where:{deviceId:storedDevice.id,target:"DEVICE",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:new Date()}}]},orderBy:{createdAt:"desc"}});
     return json({success:false,error:{code:"DEVICE_BANNED",message:"This device has been banned.",details:{macAddress:storedDevice.macAddress,reason:deviceBan?.reason??null,expiresAt:deviceBan?.expiresAt?.toISOString()??null}}},403);
   }
-  return json({success:true,data:{...data,user:{id:identity.effectiveId,normalId:identity.normalId,specialId:identity.specialId,specialIdExpiresAt:identity.specialIdExpiresAt?.toISOString()??null,name:user.name,phone:user.phone,email:user.email,country:user.country,profileImage:user.profileImage,gender:user.gender,role:user.role,status:user.status,vipLevel:user.vipLevel,createdAt:user.createdAt.toISOString()},login,sessionToken:mobileSession.createMobileSessionToken(user)}});
+  return json({success:true,data:{...data,user:{id:identity.effectiveId,normalId:identity.normalId,specialId:identity.specialId,specialIdExpiresAt:identity.specialIdExpiresAt?.toISOString()??null,name:user.name,phone:user.phone,email:user.email,country:user.country,profileImage:user.profileImage,gender:user.gender,dob:formatDateOnly(user.dob),role:user.role,status:user.status,vipLevel:user.vipLevel,createdAt:user.createdAt.toISOString()},login,sessionToken:mobileSession.createMobileSessionToken(user)}});
 }

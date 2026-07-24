@@ -1,6 +1,7 @@
 import { prisma } from "../../../../lib/prisma";
 import mobileSession from "../../../../lib/mobile-session.cjs";
 import { getEffectiveUserId, reconcileExpiredSpecialIds } from "../../../../lib/special-id";
+import { formatDateOnly, parseDateOnly } from "../../../../lib/date-only";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.MOBILE_APP_ORIGIN || "*",
@@ -34,6 +35,11 @@ export async function PATCH(request) {
     const current=await prisma.user.findUnique({where:{publicId:payload.userId}});
     if(!current||current.deletedAt||current.sessionVersion!==payload.sessionVersion)throw new Error("INVALID_SESSION");
 
+    const lockedFields={};
+    if(current.gender!==null&&Object.hasOwn(body,"gender"))lockedFields.gender="This field cannot be changed once set.";
+    if(current.dob!==null&&Object.hasOwn(body,"dob"))lockedFields.dob="This field cannot be changed once set.";
+    if(Object.keys(lockedFields).length)return json({success:false,error:{code:"FIELD_LOCKED",message:"Gender and date of birth can only be set once and cannot be changed.",fields:lockedFields}},409);
+
     const data={};
     const name=optionalString(body,"name");
     const phone=optionalString(body,"phone",{normalizePhone:true});
@@ -41,12 +47,15 @@ export async function PATCH(request) {
     const country=optionalString(body,"country");
     const profileImage=optionalString(body,"profileImage");
     const gender=optionalString(body,"gender");
+    const dob=Object.hasOwn(body,"dob")?(body.dob===null?null:parseDateOnly(body.dob)):undefined;
+    if(Object.hasOwn(body,"dob")&&body.dob!==null&&!dob)return json({success:false,error:{code:"VALIDATION_ERROR",message:"Profile data is invalid.",fields:{dob:"Date of birth must use the YYYY-MM-DD format."}}},422);
     if(name!==undefined)data.name=name;
     if(phone!==undefined)data.phone=phone;
     if(email!==undefined)data.email=email;
     if(country!==undefined)data.country=country;
     if(profileImage!==undefined)data.profileImage=profileImage;
     if(gender!==undefined)data.gender=gender;
+    if(dob!==undefined)data.dob=dob;
 
     if(!Object.keys(data).length)return json({success:false,error:{code:"NO_PROFILE_CHANGES",message:"No supported profile fields were supplied."}},422);
     if(data.name===null||data.phone===null)return json({success:false,error:{code:"VALIDATION_ERROR",message:"Name and phone cannot be empty."}},422);
@@ -54,7 +63,7 @@ export async function PATCH(request) {
     const user=await prisma.user.update({where:{id:current.id},data});
     await reconcileExpiredSpecialIds();
     const identity=await getEffectiveUserId(user.id,user.publicId);
-    return json({success:true,data:{user:{id:identity.effectiveId,normalId:identity.normalId,specialId:identity.specialId,specialIdExpiresAt:identity.specialIdExpiresAt?.toISOString()??null,name:user.name,phone:user.phone,email:user.email,country:user.country,profileImage:user.profileImage,gender:user.gender,role:user.role,status:user.status,vipLevel:user.vipLevel,createdAt:user.createdAt.toISOString(),updatedAt:user.updatedAt.toISOString()}}});
+    return json({success:true,data:{user:{id:identity.effectiveId,normalId:identity.normalId,specialId:identity.specialId,specialIdExpiresAt:identity.specialIdExpiresAt?.toISOString()??null,name:user.name,phone:user.phone,email:user.email,country:user.country,profileImage:user.profileImage,gender:user.gender,dob:formatDateOnly(user.dob),role:user.role,status:user.status,vipLevel:user.vipLevel,createdAt:user.createdAt.toISOString(),updatedAt:user.updatedAt.toISOString()}}});
   } catch(error) {
     if(error?.code==="P2002"){
       const fields=Array.isArray(error.meta?.target)?error.meta.target.join(" "):String(error.meta?.target??"");

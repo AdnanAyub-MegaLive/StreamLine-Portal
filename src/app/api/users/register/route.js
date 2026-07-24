@@ -1,6 +1,7 @@
 import { prisma } from "../../../../lib/prisma";
 import { hashPassword } from "../../../../lib/password";
 import mobileSession from "../../../../lib/mobile-session.cjs";
+import { formatDateOnly, parseDateOnly } from "../../../../lib/date-only";
 
 const allowedOrigin = process.env.MOBILE_APP_ORIGIN || "*";
 const corsHeaders = {
@@ -25,6 +26,7 @@ function validateRegistration(body) {
   if (password.length<8) errors.password = "Password must contain at least 8 characters.";
   if (body?.country != null && (typeof body.country !== "string" || body.country.trim().length > 100)) errors.country = "Country must contain no more than 100 characters.";
   if (body?.profileImage != null && (typeof body.profileImage !== "string" || body.profileImage.length > 2048)) errors.profileImage = "Profile image must be a URL no longer than 2048 characters.";
+  if (body?.dob != null && !parseDateOnly(body.dob)) errors.dob = "Date of birth must use the YYYY-MM-DD format.";
 
   const device = body?.device;
   if (device != null && (typeof device !== "object" || Array.isArray(device))) errors.device = "Device must be an object.";
@@ -67,6 +69,7 @@ export async function POST(request) {
           country: cleanOptional(body.country),
           profileImage: cleanOptional(body.profileImage),
           gender: body.gender === null ? null : cleanOptional(body.gender),
+          dob: body.dob == null ? null : parseDateOnly(body.dob),
           role: "LISTENER",
           status: "ACTIVE",
           devices: body.device ? {
@@ -112,6 +115,7 @@ export async function POST(request) {
           country: user.country,
           profileImage: user.profileImage,
           gender: user.gender,
+          dob: formatDateOnly(user.dob),
           role: user.role,
           status: user.status,
           vipLevel: user.vipLevel,

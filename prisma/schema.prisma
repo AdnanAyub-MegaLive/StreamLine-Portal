@@ -87,6 +87,7 @@ model User {
   country         String?
   profileImage    String?
   gender          String?
+  dob             DateTime?
   passwordHash    String?
   role            UserRole          @default(LISTENER)
   status          AccountStatus     @default(ACTIVE)

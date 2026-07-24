@@ -17,6 +17,7 @@ Send the request with `Content-Type: application/json`. The endpoint is public a
   "country": "Pakistan",
   "profileImage": "https://cdn.example.com/profiles/aisha.jpg",
   "gender": "female",
+  "dob": "2001-07-24",
   "device": {
     "macAddress": "stable-device-identifier",
     "lastLoginIp": "192.0.2.10",
@@ -29,7 +30,8 @@ Send the request with `Content-Type: application/json`. The endpoint is public a
 
 `name`, `phone`, and a password of at least 8 characters are required. Email is optional. Passwords are stored only as salted scrypt hashes and are never returned by the API. Phone numbers and email addresses must be unique across users. The complete `device` object is optional; when supplied, `device.macAddress` must contain either a MAC address or another stable device identifier.
 
-`gender` is nullable and returned in the registered user object. `profileImage`
+`gender` and `dob` are nullable and returned in the registered user object.
+Dates of birth use the date-only `YYYY-MM-DD` format. `profileImage`
 may be a URL or an opaque bundled-avatar identifier such as `avatar:ranger`.
 
 ## React Native example

@@ -37,6 +37,7 @@ Every login requires credentials plus current device information. The backend de
       "country": "Pakistan",
       "profileImage": null,
       "gender": "female",
+      "dob": "2001-07-24",
       "role": "LISTENER",
       "status": "ACTIVE",
       "vipLevel": 0
@@ -110,17 +111,19 @@ Both events include `success: true`. The ban event also includes `reason` and `b
 
 `PATCH /api/users/profile` requires `Authorization: Bearer <sessionToken>`.
 Send any combination of `name`, `phone`, `email`, `country`, `profileImage`,
-and `gender`. Fields that are omitted remain unchanged. Nullable fields can be
-cleared with `null`.
+`gender`, and `dob`. Fields that are omitted remain unchanged. Nullable fields
+can be cleared with `null`, except gender and DOB after their first assignment.
 
 ```json
 {
   "name": "Aisha Khan",
   "gender": "female",
+  "dob": "2001-07-24",
   "profileImage": "avatar:ranger"
 }
 ```
 
 The response returns the updated `data.user` object, including `gender` and the
-opaque `profileImage` value. Phone numbers and non-null email addresses remain
-unique across all users.
+date-only `dob`, plus the opaque `profileImage` value. Gender and DOB can each
+only be set once; later PATCH attempts return `FIELD_LOCKED`. Phone numbers and
+non-null email addresses remain unique across all users.
