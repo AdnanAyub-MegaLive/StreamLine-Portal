@@ -66,6 +66,7 @@ export async function POST(request) {
           passwordHash,
           country: cleanOptional(body.country),
           profileImage: cleanOptional(body.profileImage),
+          gender: body.gender === null ? null : cleanOptional(body.gender),
           role: "LISTENER",
           status: "ACTIVE",
           devices: body.device ? {
@@ -110,6 +111,7 @@ export async function POST(request) {
           phone: user.phone,
           country: user.country,
           profileImage: user.profileImage,
+          gender: user.gender,
           role: user.role,
           status: user.status,
           vipLevel: user.vipLevel,

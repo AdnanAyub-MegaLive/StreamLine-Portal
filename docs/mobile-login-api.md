@@ -36,6 +36,7 @@ Every login requires credentials plus current device information. The backend de
       "email": "aisha@example.com",
       "country": "Pakistan",
       "profileImage": null,
+      "gender": "female",
       "role": "LISTENER",
       "status": "ACTIVE",
       "vipLevel": 0
@@ -104,3 +105,22 @@ Omitting `macAddress` returns HTTP `422` with error code `DEVICE_ID_REQUIRED`.
 - `device:unbanned` — compare the MAC/device ID and restore access on the matching device.
 
 Both events include `success: true`. The ban event also includes `reason` and `banExpiresAt`; the unban event includes `reason`.
+
+## Update profile
+
+`PATCH /api/users/profile` requires `Authorization: Bearer <sessionToken>`.
+Send any combination of `name`, `phone`, `email`, `country`, `profileImage`,
+and `gender`. Fields that are omitted remain unchanged. Nullable fields can be
+cleared with `null`.
+
+```json
+{
+  "name": "Aisha Khan",
+  "gender": "female",
+  "profileImage": "avatar:ranger"
+}
+```
+
+The response returns the updated `data.user` object, including `gender` and the
+opaque `profileImage` value. Phone numbers and non-null email addresses remain
+unique across all users.
