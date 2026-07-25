@@ -108,7 +108,7 @@ model User {
   specialIds      SpecialIdAssignment[]
   gameLogs        GameLog[]
   audioRooms      AudioRoom[]
-  assignedUploads UploadAsset[]
+  uploadAssignments UploadAssetAssignment[]
   totalTopUp      BigInt            @default(0)
 
   @@index([status])
@@ -120,20 +120,35 @@ model UploadAsset {
   id               String   @id @default(cuid())
   publicId         String   @unique
   name             String
+  details          String?
+  tags             String[] @default([])
   category         String
   fileName         String
   mimeType         String
   fileSize         Int
   fileData         Bytes
-  assignedUserId   String?
+  isGlobal         Boolean  @default(true)
   isRoomBackground Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-  assignedUser     User?    @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  assignments      UploadAssetAssignment[]
 
   @@index([category, createdAt])
-  @@index([assignedUserId, category])
   @@index([isRoomBackground, createdAt])
+}
+
+model UploadAssetAssignment {
+  assetId         String
+  userId          String
+  durationMinutes Int?
+  assignedAt      DateTime    @default(now())
+  expiresAt       DateTime?
+  asset           UploadAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([assetId, userId])
+  @@index([userId, assignedAt])
+  @@index([expiresAt])
 }
 
 model Talent {

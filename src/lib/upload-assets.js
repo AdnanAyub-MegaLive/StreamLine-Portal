@@ -12,20 +12,29 @@ export const uploadCategories = {
 export const validUploadCategories = new Set(Object.values(uploadCategories));
 
 export function serializeUploadAsset(asset,url) {
+  const assignedUsers=(asset.assignments??[]).map((assignment)=>({
+    id:assignment.user.publicId,
+    name:assignment.user.name,
+    profileImage:assignment.user.profileImage,
+    assignedAt:assignment.assignedAt?.toISOString()??null,
+    durationMinutes:assignment.durationMinutes,
+    expiresAt:assignment.expiresAt?.toISOString()??null,
+    isExpired:Boolean(assignment.expiresAt&&assignment.expiresAt<=new Date()),
+  }));
   return {
     id:asset.publicId,
     name:asset.name,
+    details:asset.details,
+    tags:asset.tags,
     category:asset.category,
     fileName:asset.fileName,
     mimeType:asset.mimeType,
     fileSize:asset.fileSize,
     url,
+    isGlobal:asset.isGlobal,
     isRoomBackground:asset.isRoomBackground,
-    assignedUser:asset.assignedUser?{
-      id:asset.assignedUser.publicId,
-      name:asset.assignedUser.name,
-      profileImage:asset.assignedUser.profileImage,
-    }:null,
+    assignedUsers,
+    assignedUser:assignedUsers[0]??null,
     createdAt:asset.createdAt.toISOString(),
   };
 }

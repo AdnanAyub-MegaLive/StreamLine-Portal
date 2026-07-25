@@ -16,7 +16,9 @@ export async function GET(request) {
     const category=url.searchParams.get("category")?.toUpperCase().replaceAll("-","_").replaceAll(" ","_");
     if(category&&!validUploadCategories.has(category))return json({success:false,error:{code:"INVALID_CATEGORY",message:"Upload category is invalid."}},422);
     const roomBackground=url.searchParams.get("roomBackground")==="true";
-    const assets=await prisma.uploadAsset.findMany({where:{...(category?{category}:{}),...(roomBackground?{isRoomBackground:true}:{}),OR:[{assignedUserId:null},{assignedUserId:user.id}]},include:{assignedUser:{select:{publicId:true,name:true,profileImage:true}}},orderBy:{createdAt:"desc"},take:200});
+    const now=new Date();
+    const active={OR:[{expiresAt:null},{expiresAt:{gt:now}}]};
+    const assets=await prisma.uploadAsset.findMany({where:{...(category?{category}:{}),...(roomBackground?{isRoomBackground:true}:{}),OR:[{isGlobal:true},{assignments:{some:{userId:user.id,...active}}}]},include:{assignments:{where:active,include:{user:{select:{publicId:true,name:true,profileImage:true}}},orderBy:{assignedAt:"asc"}}},orderBy:{createdAt:"desc"},take:200});
     const forwardedHost=request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
     const host=forwardedHost||request.headers.get("host");
     const forwardedProtocol=request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();

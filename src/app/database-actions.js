@@ -102,19 +102,19 @@ export async function updateTalentAccount(publicId, changes) {
   if(changes.salary!==undefined) await prisma.salaryHistory.create({data:{talentId:talent.id,adminId:admin.id,periodStart:new Date(new Date().getFullYear(),new Date().getMonth(),1),periodEnd:new Date(),amount:String(changes.salary),status:"PENDING",notes:"Salary adjusted from admin profile"}});
   if(Object.keys(data).length)await prisma.talent.update({where:{publicId},data});
   let action="UPDATE_TALENT";
-  let description=`${admin.name} updated talent ${publicId}`;
+  let description=`${admin.name} updated host ${publicId}`;
   if(changes.verification!==undefined) {
     action="CHANGE_TALENT_VERIFICATION";
-    description=`${admin.name} changed talent ${publicId} verification to ${changes.verification}`;
+    description=`${admin.name} changed host ${publicId} verification to ${changes.verification}`;
   } else if(changes.salary!==undefined) {
     action="ADJUST_TALENT_SALARY";
-    description=`${admin.name} adjusted talent ${publicId} salary to ${changes.salary}`;
+    description=`${admin.name} adjusted host ${publicId} salary to ${changes.salary}`;
   } else if(changes.status!==undefined) {
     action="CHANGE_TALENT_STATUS";
-    description=`${admin.name} changed talent ${publicId} status to ${changes.status}`;
+    description=`${admin.name} changed host ${publicId} status to ${changes.status}`;
   } else if(changes.name!==undefined||changes.email!==undefined||changes.phone!==undefined||changes.country!==undefined) {
     action="EDIT_TALENT_PROFILE";
-    description=`${admin.name} edited profile details for talent ${publicId}`;
+    description=`${admin.name} edited profile details for host ${publicId}`;
   }
   await logActivity(admin,{action,category:"TALENT_MANAGEMENT",entityType:"Talent",entityId:publicId,description,metadata:{...changes,reason:changes.auditReason||null}});
   revalidatePath("/talents"); revalidatePath(`/talents/${publicId}`);
@@ -157,7 +157,7 @@ export async function createAccount(type, values) {
     const next=Math.max(2099,...latest.map((item)=>Number(item.publicId.replace(/\D/g,""))||0))+1;
     const publicId=`TLT-${next}`;
     await prisma.talent.create({data:{publicId,displayName:values.displayName,legalName:values.name,email:values.email,phone:values.phone,country:values.country,type:enumValue(values.talentType),verification:enumValue(values.verificationStatus),status:"PENDING"}});
-    await logActivity(admin,{action:"CREATE_TALENT",category:"TALENT_MANAGEMENT",entityType:"Talent",entityId:publicId,description:`${admin.name} created talent ${values.displayName} (${publicId})`,metadata:{email:values.email,type:values.talentType}});
+    await logActivity(admin,{action:"CREATE_TALENT",category:"TALENT_MANAGEMENT",entityType:"Talent",entityId:publicId,description:`${admin.name} created host ${values.displayName} (${publicId})`,metadata:{email:values.email,type:values.talentType}});
     revalidatePath("/talents");
   }
 }
@@ -173,7 +173,7 @@ export async function createBan({publicId,target,reason,durationMinutes,permanen
   if(target==="DEVICE")await prisma.device.update({where:{id:device.id},data:{isBanned:true}});
   else if(isTalent)await prisma.talent.update({where:{id:owner.id},data:{status:"BANNED"}});
   else await prisma.user.update({where:{id:owner.id},data:{status:"BANNED"}});
-  await logActivity(admin,{action:target==="DEVICE"?"BAN_DEVICE":"BAN_ACCOUNT",category:"SECURITY",entityType:isTalent?"Talent":"User",entityId:publicId,description:`${admin.name} banned the ${target.toLowerCase()} for ${isTalent?"talent":"user"} ${publicId}`,metadata:{reason,durationMinutes:minutes,permanent}});
+  await logActivity(admin,{action:target==="DEVICE"?"BAN_DEVICE":"BAN_ACCOUNT",category:"SECURITY",entityType:isTalent?"Talent":"User",entityId:publicId,description:`${admin.name} banned the ${target.toLowerCase()} for ${isTalent?"host":"user"} ${publicId}`,metadata:{reason,durationMinutes:minutes,permanent}});
   if(!isTalent&&target==="USER"){
     const payload={success:true,data:{sessionVersion:owner.sessionVersion,forcedLogoutAt:owner.forcedLogoutAt?.toISOString()??null,isBanned:true,banReason:reason,banExpiresAt:minutes?new Date(Date.now()+minutes*60000).toISOString():null}};
     emitToUser(publicId,"account:banned",payload);
@@ -194,7 +194,7 @@ export async function unbanUser(publicId, reason) {
     else await tx.user.update({where:{id:owner.id},data:{status:"ACTIVE"}});
     return result.count;
   });
-  await logActivity(admin,{action:"UNBAN_ACCOUNT",category:"SECURITY",entityType:isTalent?"Talent":"User",entityId:publicId,description:`${admin.name} restored login access for ${isTalent?"talent":"user"} ${publicId}`,metadata:{reason,revokedBans:revoked}});
+  await logActivity(admin,{action:"UNBAN_ACCOUNT",category:"SECURITY",entityType:isTalent?"Talent":"User",entityId:publicId,description:`${admin.name} restored login access for ${isTalent?"host":"user"} ${publicId}`,metadata:{reason,revokedBans:revoked}});
   if(!isTalent)emitToUser(publicId,"account:unbanned",{success:true,data:{sessionVersion:owner.sessionVersion,forcedLogoutAt:owner.forcedLogoutAt?.toISOString()??null,isBanned:false,banReason:null,banExpiresAt:null}});
   revalidatePath(isTalent?"/talents":"/users"); revalidatePath(`/${isTalent?"talents":"users"}/${publicId}`);
 }

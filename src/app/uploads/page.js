@@ -6,13 +6,13 @@ import UploadTabs from "./upload-tabs";
 import { prisma } from "../../lib/prisma";
 import { serializeUploadAsset } from "../../lib/upload-assets";
 
-const nav = [["Overview", "/home"], ["Users / Senders", "/users"], ["Talent Management", "/talents"], ["Agency Management", "/agencies"], ["Uploads", "/uploads"], ["Audit Logs", "/audit-logs"], ["Live streams", "#"], ["Reports", "#"]];
+const nav = [["Overview", "/home"], ["Users / Senders", "/users"], ["Host Management", "/talents"], ["Agency Management", "/agencies"], ["Uploads", "/uploads"], ["Audit Logs", "/audit-logs"], ["Live streams", "#"], ["Reports", "#"]];
 
 export default async function UploadsPage() {
   const session = await auth();
   if (!session?.user) redirect("/");
   const [assets,users]=await Promise.all([
-    prisma.uploadAsset.findMany({select:{publicId:true,name:true,category:true,fileName:true,mimeType:true,fileSize:true,isRoomBackground:true,createdAt:true,assignedUser:{select:{publicId:true,name:true,profileImage:true}}},orderBy:{createdAt:"desc"}}),
+    prisma.uploadAsset.findMany({select:{publicId:true,name:true,details:true,tags:true,category:true,fileName:true,mimeType:true,fileSize:true,isGlobal:true,isRoomBackground:true,createdAt:true,assignments:{select:{assignedAt:true,durationMinutes:true,expiresAt:true,user:{select:{publicId:true,name:true,profileImage:true}}},orderBy:{assignedAt:"asc"}}},orderBy:{createdAt:"desc"}}),
     prisma.user.findMany({where:{deletedAt:null},select:{publicId:true,name:true,phone:true},orderBy:{name:"asc"},take:1000}),
   ]);
   const uploadData=assets.map((asset)=>serializeUploadAsset(asset,`/api/uploads/${asset.publicId}/file`));

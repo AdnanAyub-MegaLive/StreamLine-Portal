@@ -30,19 +30,48 @@ Authorization: Bearer <sessionToken>
       {
         "id": "AST-A1B2C3D4E5F6",
         "name": "Neon Lounge",
+        "details": "Animated neon room background.",
+        "tags": ["neon", "lounge"],
         "category": "ROOM_BACKGROUNDS",
         "fileName": "neon-lounge.webp",
         "mimeType": "image/webp",
         "fileSize": 248310,
         "url": "https://portal.example.com/api/uploads/AST-A1B2C3D4E5F6/file?uid=USR-1048&sv=0&exp=1784883600&sig=...",
+        "isGlobal": false,
         "isRoomBackground": true,
-        "assignedUser": null,
+        "assignedUsers": [
+          {
+            "id": "USR-1048",
+            "name": "Aisha Khan",
+            "profileImage": null,
+            "assignedAt": "2026-07-25T08:00:00.000Z",
+            "durationMinutes": 10080,
+            "expiresAt": "2026-08-01T08:00:00.000Z",
+            "isExpired": false
+          }
+        ],
+        "assignedUser": {
+          "id": "USR-1048",
+          "name": "Aisha Khan",
+          "profileImage": null,
+          "assignedAt": "2026-07-25T08:00:00.000Z",
+          "durationMinutes": 10080,
+          "expiresAt": "2026-08-01T08:00:00.000Z",
+          "isExpired": false
+        },
         "createdAt": "2026-07-24T08:00:00.000Z"
       }
     ]
   }
 }
 ```
+
+One asset may be assigned to multiple users. `assignedUsers` is the complete
+assignment list. `assignedUser` remains temporarily as the first assigned user
+for compatibility with older app builds; new code should use `assignedUsers`.
+Only active, unexpired grants are returned by the mobile catalogue. Once
+`expiresAt` is reached, the asset disappears for that user and the file
+endpoint rejects access.
 
 ## Load the media file
 

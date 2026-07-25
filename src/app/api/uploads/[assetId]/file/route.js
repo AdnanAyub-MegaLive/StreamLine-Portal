@@ -5,7 +5,8 @@ import { verifySignedAssetUrl } from "../../../../../lib/upload-assets";
 
 export async function GET(request,{params}) {
   const {assetId}=await params;
-  const asset=await prisma.uploadAsset.findUnique({where:{publicId:assetId},select:{fileData:true,fileName:true,mimeType:true,assignedUserId:true}});
+  const now=new Date();
+  const asset=await prisma.uploadAsset.findUnique({where:{publicId:assetId},select:{fileData:true,fileName:true,mimeType:true,isGlobal:true,assignments:{where:{OR:[{expiresAt:null},{expiresAt:{gt:now}}]},select:{userId:true}}}});
   if(!asset)return Response.json({success:false,error:{code:"ASSET_NOT_FOUND",message:"Upload not found."}},{status:404});
 
   const session=await auth();
@@ -15,7 +16,7 @@ export async function GET(request,{params}) {
       const signed=verifySignedAssetUrl(assetId,{userId:url.searchParams.get("uid"),sessionVersion:url.searchParams.get("sv"),expiresAt:url.searchParams.get("exp"),signature:url.searchParams.get("sig")});
       const payload=signed??mobileSession.verifyMobileSessionToken(request.headers.get("authorization")?.replace(/^Bearer\s+/i,""));
       const user=await prisma.user.findUnique({where:{publicId:payload.userId},select:{id:true,deletedAt:true,sessionVersion:true}});
-      if(!user||user.deletedAt||user.sessionVersion!==payload.sessionVersion||asset.assignedUserId&&asset.assignedUserId!==user.id)throw new Error("FORBIDDEN");
+      if(!user||user.deletedAt||user.sessionVersion!==payload.sessionVersion||!asset.isGlobal&&!asset.assignments.some((assignment)=>assignment.userId===user.id))throw new Error("FORBIDDEN");
     } catch {
       return Response.json({success:false,error:{code:"UNAUTHORIZED",message:"A valid session is required to access this upload."}},{status:401});
     }

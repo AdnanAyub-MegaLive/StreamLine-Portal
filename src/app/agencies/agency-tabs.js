@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-const tabs = ["Agency Home", "Agency Tasks", "Monthly Salary", "Talent Salaries", "Agency Apply"];
+const tabs = ["Agency Home", "Agency Tasks", "Monthly Salary", "Host Salaries", "Agency Apply"];
 const agencies = [
   { rank:1,id:"AG-1008",name:"Starlight Network",talents:84,gifts:"8.42M",target:"112%",status:"Achieved" },
   { rank:2,id:"AG-1014",name:"Royal Creators",talents:67,gifts:"7.18M",target:"96%",status:"On track" },
@@ -25,22 +25,22 @@ export default function AgencyTabs() {
 }
 
 function AgencyHome() {
-  return <div className="space-y-6"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{[["Total agencies","42","38 currently active"],["Agency talents","1,284","Across all agencies"],["Total agency recharge","PKR 48.6M","Recharge by all agencies"],["Monthly gifts","27.8M","104% of target"],["Pending applications","8","Awaiting review"]].map(([label,value,note])=><div key={label} className="rounded-xl border border-[#dfe9e7] bg-white p-5"><p className="text-[11px] font-semibold text-[#768984]">{label}</p><p className="mt-2 text-2xl font-bold">{value}</p><p className="mt-2 text-[10px] text-[#429387]">{note}</p></div>)}</div><div className="grid gap-6 xl:grid-cols-2"><AgencyTable/><TalentTable/></div></div>;
+  return <div className="space-y-6"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{[["Total agencies","42","38 currently active"],["Agency hosts","1,284","Across all agencies"],["Total agency recharge","PKR 48.6M","Recharge by all agencies"],["Monthly gifts","27.8M","104% of target"],["Pending applications","8","Awaiting review"]].map(([label,value,note])=><div key={label} className="rounded-xl border border-[#dfe9e7] bg-white p-5"><p className="text-[11px] font-semibold text-[#768984]">{label}</p><p className="mt-2 text-2xl font-bold">{value}</p><p className="mt-2 text-[10px] text-[#429387]">{note}</p></div>)}</div><div className="grid gap-6 xl:grid-cols-2"><AgencyTable/><TalentTable/></div></div>;
 }
 
 function AgencyTable() {
-  return <Card title="Agency ranking" description="Ranked by current-month gift performance"><table className="w-full min-w-[620px] text-left text-xs"><thead><tr className="bg-[#f8fbfa] text-[10px] tracking-wider text-[#7b8e89] uppercase"><th className="px-5 py-3.5">Rank</th><th>Agency</th><th>Talents</th><th>Gifts</th><th>Target</th><th className="pr-5">Status</th></tr></thead><tbody className="divide-y divide-[#edf2f1]">{agencies.map((item)=><tr key={item.id} className="hover:bg-[#f9fcfb]"><td className="px-5 py-4 font-bold text-[#087f74]">#{item.rank}</td><td><strong className="block">{item.name}</strong><span className="text-[9px] text-[#849691]">{item.id}</span></td><td>{item.talents}</td><td className="font-semibold">{item.gifts}</td><td>{item.target}</td><td className="pr-5"><Status value={item.status}/></td></tr>)}</tbody></table></Card>;
+  return <Card title="Agency ranking" description="Ranked by current-month gift performance"><table className="w-full min-w-[620px] text-left text-xs"><thead><tr className="bg-[#f8fbfa] text-[10px] tracking-wider text-[#7b8e89] uppercase"><th className="px-5 py-3.5">Rank</th><th>Agency</th><th>Hosts</th><th>Gifts</th><th>Target</th><th className="pr-5">Status</th></tr></thead><tbody className="divide-y divide-[#edf2f1]">{agencies.map((item)=><tr key={item.id} className="hover:bg-[#f9fcfb]"><td className="px-5 py-4 font-bold text-[#087f74]">#{item.rank}</td><td><strong className="block">{item.name}</strong><span className="text-[9px] text-[#849691]">{item.id}</span></td><td>{item.talents}</td><td className="font-semibold">{item.gifts}</td><td>{item.target}</td><td className="pr-5"><Status value={item.status}/></td></tr>)}</tbody></table></Card>;
 }
 
 function TalentTable() {
-  return <Card title="Top talents" description="Performance and agency target contribution"><table className="w-full min-w-[580px] text-left text-xs"><thead><tr className="bg-[#f8fbfa] text-[10px] tracking-wider text-[#7b8e89] uppercase"><th className="px-5 py-3.5">Rank</th><th>Talent</th><th>Agency</th><th>Gifts</th><th className="pr-5">Target</th></tr></thead><tbody className="divide-y divide-[#edf2f1]">{topTalents.map((item)=><tr key={item.id} className="hover:bg-[#f9fcfb]"><td className="px-5 py-4 font-bold text-[#087f74]">#{item.rank}</td><td><strong className="block">{item.name}</strong><span className="text-[9px] text-[#849691]">{item.id}</span></td><td>{item.agency}</td><td className="font-semibold">{item.gifts}</td><td className="pr-5">{item.target}</td></tr>)}</tbody></table></Card>;
+  return <Card title="Top hosts" description="Performance and agency target contribution"><table className="w-full min-w-[580px] text-left text-xs"><thead><tr className="bg-[#f8fbfa] text-[10px] tracking-wider text-[#7b8e89] uppercase"><th className="px-5 py-3.5">Rank</th><th>Host</th><th>Agency</th><th>Gifts</th><th className="pr-5">Target</th></tr></thead><tbody className="divide-y divide-[#edf2f1]">{topTalents.map((item)=><tr key={item.id} className="hover:bg-[#f9fcfb]"><td className="px-5 py-4 font-bold text-[#087f74]">#{item.rank}</td><td><strong className="block">{item.name}</strong><span className="text-[9px] text-[#849691]">{item.id}</span></td><td>{item.agency}</td><td className="font-semibold">{item.gifts}</td><td className="pr-5">{item.target}</td></tr>)}</tbody></table></Card>;
 }
 
 function Module({ tab }) {
   const copy = {
     "Agency Tasks":["Agency tasks","Create and review agency targets, deadlines, and completion status."],
     "Monthly Salary":["Monthly agency salary","Review monthly agency commissions and payment status."],
-    "Talent Salaries":["Talent salaries","Review salary calculations for talents working under each agency."],
+    "Host Salaries":["Host salaries","Review salary calculations for hosts working under each agency."],
     "Agency Apply":["Agency applications","Review applications to create or register a new agency."],
   }[tab];
   return <div className="rounded-2xl border border-[#dce8e5] bg-white p-8"><span className="grid h-12 w-12 place-items-center rounded-xl bg-[#e4f6f3] text-lg font-bold text-[#087f74]">{tab[0]}</span><h3 className="mt-5 text-lg font-bold">{copy[0]}</h3><p className="mt-2 max-w-2xl text-sm text-[#71847f]">{copy[1]}</p><div className="mt-8 rounded-xl border border-dashed border-[#cbded9] bg-[#f8fbfa] px-6 py-12 text-center text-xs text-[#81938e]">This module is ready for its database workflow and management actions.</div></div>;
