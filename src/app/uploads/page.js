@@ -5,6 +5,7 @@ import FeatureSearch from "../components/feature-search";
 import UploadTabs from "./upload-tabs";
 import { prisma } from "../../lib/prisma";
 import { serializeUploadAsset } from "../../lib/upload-assets";
+import BrandLogo from "../components/brand-logo";
 
 const nav = [
   ["Overview", "/home"],
@@ -67,15 +68,7 @@ export default async function UploadsPage() {
   return (
     <main className="min-h-screen bg-[#f4f8f7] text-[#142c2a]">
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-[#092f2d] px-5 py-7 text-white lg:flex">
-        <Link
-          href="/home"
-          className="flex items-center gap-3 px-2 text-xl font-bold"
-        >
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-linear-to-br from-[#48e4ce] to-[#18b7a6] text-[#073d39]">
-            ▶
-          </span>
-          streamline
-        </Link>
+        <Link href="/home" className="px-2"><BrandLogo light compact priority/></Link>
         <nav className="mt-12 space-y-1">
           {nav.map(([label, href]) => (
             <Link

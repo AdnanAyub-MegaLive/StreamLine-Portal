@@ -109,6 +109,7 @@ model User {
   gameLogs        GameLog[]
   audioRooms      AudioRoom[]
   uploadAssignments UploadAssetAssignment[]
+  agencyApplications AgencyApplication[]
   totalTopUp      BigInt            @default(0)
 
   @@index([status])
@@ -149,6 +150,28 @@ model UploadAssetAssignment {
   @@id([assetId, userId])
   @@index([userId, assignedAt])
   @@index([expiresAt])
+}
+
+model AgencyApplication {
+  id            String   @id @default(cuid())
+  publicId      String   @unique
+  userId        String
+  agencyName    String
+  email         String?
+  whatsapp      String
+  bdCode        String
+  country       String?
+  cnicFrontData Bytes
+  cnicFrontMime String
+  cnicBackData  Bytes
+  cnicBackMime  String
+  status        String   @default("PENDING")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId])
 }
 
 model Talent {

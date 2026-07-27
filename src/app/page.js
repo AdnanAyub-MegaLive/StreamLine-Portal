@@ -1,29 +1,10 @@
 import LoginForm from "./login-form";
 import { auth } from "../../auth";
 import { redirect } from "next/navigation";
-
-function BrandMark() {
-  return (
-    <div
-      className="relative h-10 w-10 rounded-[13px] bg-linear-to-br from-[#48e4ce] to-[#18b7a6] shadow-[0_9px_24px_rgba(28,224,198,.19)]"
-      aria-hidden="true"
-    >
-      <span className="absolute top-[11px] left-3 h-0 w-0 border-y-[9px] border-y-transparent border-l-[13px] border-l-[#073d39]" />
-      <span className="absolute top-3 left-[26px] h-[17px] w-[7px] rounded-[50%] border-2 border-y-transparent border-l-0 border-r-white" />
-      <span className="absolute top-2 left-[29px] h-[25px] w-[11px] rounded-[50%] border-2 border-y-transparent border-l-0 border-r-white opacity-55" />
-    </div>
-  );
-}
+import BrandLogo from "./components/brand-logo";
 
 function Brand({ mobile = false }) {
-  return (
-    <div
-      className={`relative z-10 flex items-center gap-[13px] text-[22px] font-bold tracking-[-.6px] ${mobile ? "text-[#142c2a]" : "text-white"}`}
-    >
-      <BrandMark />
-      <span>streamline</span>
-    </div>
-  );
+  return <BrandLogo light={!mobile} priority className="relative z-10"/>;
 }
 
 export default async function Home() {
