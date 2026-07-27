@@ -5,20 +5,27 @@ import { auth } from "../../auth";
 import { prisma } from "../lib/prisma";
 import { generateTemporaryPassword, hashPassword } from "../lib/password";
 import { emitToAudioRoom, emitToUser } from "../lib/realtime";
-import { assignDefinitionToUser, autoAssignEligibleSpecialId, normalizeSpecialId, reconcileExpiredSpecialIds } from "../lib/special-id";
+import {
+  assignDefinitionToUser,
+  autoAssignEligibleSpecialId,
+  normalizeSpecialId,
+  reconcileExpiredSpecialIds,
+} from "../lib/special-id";
 import { reconcileExpiredAudioRoomRestrictions } from "../lib/audio-room-maintenance";
 
 async function requireAdmin() {
   const session = await auth();
   if (!session?.user?.email) throw new Error("Unauthorized");
-  const admin = await prisma.admin.findUnique({ where:{email:session.user.email} });
+  const admin = await prisma.admin.findUnique({
+    where: { email: session.user.email },
+  });
   if (!admin?.active) throw new Error("Unauthorized");
   return admin;
 }
 
 async function requireSuperAdmin() {
-  const admin=await requireAdmin();
-  if(admin.role!=="SUPER_ADMIN")throw new Error("SUPER_ADMIN_REQUIRED");
+  const admin = await requireAdmin();
+  if (admin.role !== "SUPER_ADMIN") throw new Error("SUPER_ADMIN_REQUIRED");
   return admin;
 }
 
@@ -38,284 +45,796 @@ async function logActivity(admin, data) {
 }
 
 const enumValue = (value) => {
-  const normalized=String(value).trim().toUpperCase().replaceAll(" ","_");
-  if(normalized==="REVIEW")return "UNDER_REVIEW";
-  if(normalized==="VIDEO_&_AUDIO_HOST")return "VIDEO_AND_AUDIO_HOST";
+  const normalized = String(value).trim().toUpperCase().replaceAll(" ", "_");
+  if (normalized === "REVIEW") return "UNDER_REVIEW";
+  if (normalized === "VIDEO_&_AUDIO_HOST") return "VIDEO_AND_AUDIO_HOST";
   return normalized;
 };
 
 const normalizePhone = (value) => {
-  const phone=String(value??"").trim().replace(/[\s().-]/g,"");
-  if(!/^\+?[0-9]{7,15}$/.test(phone))throw new Error("INVALID_PHONE");
+  const phone = String(value ?? "")
+    .trim()
+    .replace(/[\s().-]/g, "");
+  if (!/^\+?[0-9]{7,15}$/.test(phone)) throw new Error("INVALID_PHONE");
   return phone;
 };
 
-const normalizeEmail = (value) => String(value??"").trim().toLowerCase() || null;
+const normalizeEmail = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase() || null;
 
 export async function updateUserAccount(publicId, changes) {
-  const admin=await requireAdmin();
-  const data={};
-  if(changes.name!==undefined)data.name=changes.name;
-  if(changes.email!==undefined)data.email=normalizeEmail(changes.email);
-  if(changes.phone!==undefined)data.phone=normalizePhone(changes.phone);
-  if(changes.country!==undefined)data.country=changes.country;
-  if(changes.role!==undefined)data.role=enumValue(changes.role);
-  if(changes.status!==undefined)data.status=enumValue(changes.status);
-  if(changes.vipLevel!==undefined)data.vipLevel=Number(changes.vipLevel);
-  await prisma.user.update({where:{publicId},data});
-  let action="UPDATE_USER";
-  let description=`${admin.name} updated user ${publicId}`;
-  if(changes.vipLevel!==undefined) {
-    action=Number(changes.vipLevel)>0?"GRANT_VIP":"REMOVE_VIP";
-    description=Number(changes.vipLevel)>0?`${admin.name} granted VIP ${changes.vipLevel} to user ${publicId}`:`${admin.name} removed VIP access from user ${publicId}`;
-  } else if(changes.role!==undefined) {
-    action="CHANGE_USER_ROLE";
-    description=`${admin.name} changed the role of user ${publicId} to ${changes.role}`;
-  } else if(changes.status!==undefined) {
-    action="CHANGE_USER_STATUS";
-    description=`${admin.name} changed user ${publicId} status to ${changes.status}`;
-  } else if(changes.name!==undefined||changes.email!==undefined||changes.phone!==undefined||changes.country!==undefined) {
-    action="EDIT_USER_PROFILE";
-    description=`${admin.name} edited profile details for user ${publicId}`;
+  const admin = await requireAdmin();
+  const data = {};
+  if (changes.name !== undefined) data.name = changes.name;
+  if (changes.email !== undefined) data.email = normalizeEmail(changes.email);
+  if (changes.phone !== undefined) data.phone = normalizePhone(changes.phone);
+  if (changes.country !== undefined) data.country = changes.country;
+  if (changes.role !== undefined) data.role = enumValue(changes.role);
+  if (changes.status !== undefined) data.status = enumValue(changes.status);
+  if (changes.vipLevel !== undefined) data.vipLevel = Number(changes.vipLevel);
+  await prisma.user.update({ where: { publicId }, data });
+  let action = "UPDATE_USER";
+  let description = `${admin.name} updated user ${publicId}`;
+  if (changes.vipLevel !== undefined) {
+    action = Number(changes.vipLevel) > 0 ? "GRANT_VIP" : "REMOVE_VIP";
+    description =
+      Number(changes.vipLevel) > 0
+        ? `${admin.name} granted VIP ${changes.vipLevel} to user ${publicId}`
+        : `${admin.name} removed VIP access from user ${publicId}`;
+  } else if (changes.role !== undefined) {
+    action = "CHANGE_USER_ROLE";
+    description = `${admin.name} changed the role of user ${publicId} to ${changes.role}`;
+  } else if (changes.status !== undefined) {
+    action = "CHANGE_USER_STATUS";
+    description = `${admin.name} changed user ${publicId} status to ${changes.status}`;
+  } else if (
+    changes.name !== undefined ||
+    changes.email !== undefined ||
+    changes.phone !== undefined ||
+    changes.country !== undefined
+  ) {
+    action = "EDIT_USER_PROFILE";
+    description = `${admin.name} edited profile details for user ${publicId}`;
   }
-  await logActivity(admin,{action,category:"USER_MANAGEMENT",entityType:"User",entityId:publicId,description,metadata:{...changes,reason:changes.auditReason||null}});
-  if(changes.vipLevel!==undefined){
-    const assignment=await autoAssignEligibleSpecialId(publicId,"VIP");
-    if(assignment)emitToUser(publicId,"special-id:assigned",{success:true,data:{specialId:assignment.specialId,expiresAt:assignment.expiresAt.toISOString(),source:"VIP"}});
+  await logActivity(admin, {
+    action,
+    category: "USER_MANAGEMENT",
+    entityType: "User",
+    entityId: publicId,
+    description,
+    metadata: { ...changes, reason: changes.auditReason || null },
+  });
+  if (changes.vipLevel !== undefined) {
+    const assignment = await autoAssignEligibleSpecialId(publicId, "VIP");
+    if (assignment)
+      emitToUser(publicId, "special-id:assigned", {
+        success: true,
+        data: {
+          specialId: assignment.specialId,
+          expiresAt: assignment.expiresAt.toISOString(),
+          source: "VIP",
+        },
+      });
   }
-  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
+  revalidatePath("/users");
+  revalidatePath(`/users/${publicId}`);
 }
 
 export async function updateTalentAccount(publicId, changes) {
-  const admin=await requireAdmin();
-  const talent=await prisma.talent.findUniqueOrThrow({where:{publicId}});
-  const data={};
-  if(changes.name!==undefined)data.displayName=changes.name;
-  if(changes.email!==undefined)data.email=changes.email;
-  if(changes.phone!==undefined)data.phone=changes.phone;
-  if(changes.country!==undefined)data.country=changes.country;
-  if(changes.status!==undefined)data.status=enumValue(changes.status);
-  if(changes.verification!==undefined) {
-    data.verification=enumValue(changes.verification);
-    await prisma.talentVerification.create({data:{talentId:talent.id,reviewedById:admin.id,status:data.verification,reviewedAt:new Date()}});
+  const admin = await requireAdmin();
+  const talent = await prisma.talent.findUniqueOrThrow({ where: { publicId } });
+  const data = {};
+  if (changes.name !== undefined) data.displayName = changes.name;
+  if (changes.email !== undefined) data.email = changes.email;
+  if (changes.phone !== undefined) data.phone = changes.phone;
+  if (changes.country !== undefined) data.country = changes.country;
+  if (changes.status !== undefined) data.status = enumValue(changes.status);
+  if (changes.verification !== undefined) {
+    data.verification = enumValue(changes.verification);
+    await prisma.talentVerification.create({
+      data: {
+        talentId: talent.id,
+        reviewedById: admin.id,
+        status: data.verification,
+        reviewedAt: new Date(),
+      },
+    });
   }
-  if(changes.salary!==undefined) await prisma.salaryHistory.create({data:{talentId:talent.id,adminId:admin.id,periodStart:new Date(new Date().getFullYear(),new Date().getMonth(),1),periodEnd:new Date(),amount:String(changes.salary),status:"PENDING",notes:"Salary adjusted from admin profile"}});
-  if(Object.keys(data).length)await prisma.talent.update({where:{publicId},data});
-  let action="UPDATE_TALENT";
-  let description=`${admin.name} updated host ${publicId}`;
-  if(changes.verification!==undefined) {
-    action="CHANGE_TALENT_VERIFICATION";
-    description=`${admin.name} changed host ${publicId} verification to ${changes.verification}`;
-  } else if(changes.salary!==undefined) {
-    action="ADJUST_TALENT_SALARY";
-    description=`${admin.name} adjusted host ${publicId} salary to ${changes.salary}`;
-  } else if(changes.status!==undefined) {
-    action="CHANGE_TALENT_STATUS";
-    description=`${admin.name} changed host ${publicId} status to ${changes.status}`;
-  } else if(changes.name!==undefined||changes.email!==undefined||changes.phone!==undefined||changes.country!==undefined) {
-    action="EDIT_TALENT_PROFILE";
-    description=`${admin.name} edited profile details for host ${publicId}`;
+  if (changes.salary !== undefined)
+    await prisma.salaryHistory.create({
+      data: {
+        talentId: talent.id,
+        adminId: admin.id,
+        periodStart: new Date(
+          new Date().getFullYear(),
+          new Date().getMonth(),
+          1,
+        ),
+        periodEnd: new Date(),
+        amount: String(changes.salary),
+        status: "PENDING",
+        notes: "Salary adjusted from admin profile",
+      },
+    });
+  if (Object.keys(data).length)
+    await prisma.talent.update({ where: { publicId }, data });
+  let action = "UPDATE_TALENT";
+  let description = `${admin.name} updated host ${publicId}`;
+  if (changes.verification !== undefined) {
+    action = "CHANGE_TALENT_VERIFICATION";
+    description = `${admin.name} changed host ${publicId} verification to ${changes.verification}`;
+  } else if (changes.salary !== undefined) {
+    action = "ADJUST_TALENT_SALARY";
+    description = `${admin.name} adjusted host ${publicId} salary to ${changes.salary}`;
+  } else if (changes.status !== undefined) {
+    action = "CHANGE_TALENT_STATUS";
+    description = `${admin.name} changed host ${publicId} status to ${changes.status}`;
+  } else if (
+    changes.name !== undefined ||
+    changes.email !== undefined ||
+    changes.phone !== undefined ||
+    changes.country !== undefined
+  ) {
+    action = "EDIT_TALENT_PROFILE";
+    description = `${admin.name} edited profile details for host ${publicId}`;
   }
-  await logActivity(admin,{action,category:"TALENT_MANAGEMENT",entityType:"Talent",entityId:publicId,description,metadata:{...changes,reason:changes.auditReason||null}});
-  revalidatePath("/talents"); revalidatePath(`/talents/${publicId}`);
+  await logActivity(admin, {
+    action,
+    category: "TALENT_MANAGEMENT",
+    entityType: "Talent",
+    entityId: publicId,
+    description,
+    metadata: { ...changes, reason: changes.auditReason || null },
+  });
+  revalidatePath("/talents");
+  revalidatePath(`/talents/${publicId}`);
 }
 
 export async function adjustUserCoins(publicId, operation, amount, reason) {
-  const admin=await requireAdmin();
-  const user=await prisma.user.findUniqueOrThrow({where:{publicId}});
-  const value=BigInt(amount);
-  const after=operation==="add" ? user.coinBalance+value : user.coinBalance>value ? user.coinBalance-value : 0n;
+  const admin = await requireAdmin();
+  const user = await prisma.user.findUniqueOrThrow({ where: { publicId } });
+  const value = BigInt(amount);
+  const after =
+    operation === "add"
+      ? user.coinBalance + value
+      : user.coinBalance > value
+        ? user.coinBalance - value
+        : 0n;
   await prisma.$transaction([
-    prisma.user.update({where:{id:user.id},data:{coinBalance:after,...(operation==="add"?{totalTopUp:{increment:value}}:{})}}),
-    prisma.coinAdjustment.create({data:{userId:user.id,adminId:admin.id,operation:operation==="add"?"ADD":"REMOVE",amount:value,balanceBefore:user.coinBalance,balanceAfter:after,reason}}),
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        coinBalance: after,
+        ...(operation === "add" ? { totalTopUp: { increment: value } } : {}),
+      },
+    }),
+    prisma.coinAdjustment.create({
+      data: {
+        userId: user.id,
+        adminId: admin.id,
+        operation: operation === "add" ? "ADD" : "REMOVE",
+        amount: value,
+        balanceBefore: user.coinBalance,
+        balanceAfter: after,
+        reason,
+      },
+    }),
   ]);
-  await logActivity(admin,{action:operation==="add"?"ADD_COINS":"REMOVE_COINS",category:"FINANCE",entityType:"User",entityId:publicId,description:`${admin.name} ${operation==="add"?"added":"removed"} ${amount} coins ${operation==="add"?"to":"from"} user ${publicId}`,metadata:{amount,operation,reason,balanceAfter:Number(after)}});
-  if(operation==="add"){
-    const assignment=await autoAssignEligibleSpecialId(publicId,"TOP_UP");
-    if(assignment)emitToUser(publicId,"special-id:assigned",{success:true,data:{specialId:assignment.specialId,expiresAt:assignment.expiresAt.toISOString(),source:"TOP_UP"}});
+  await logActivity(admin, {
+    action: operation === "add" ? "ADD_COINS" : "REMOVE_COINS",
+    category: "FINANCE",
+    entityType: "User",
+    entityId: publicId,
+    description: `${admin.name} ${operation === "add" ? "added" : "removed"} ${amount} coins ${operation === "add" ? "to" : "from"} user ${publicId}`,
+    metadata: { amount, operation, reason, balanceAfter: Number(after) },
+  });
+  if (operation === "add") {
+    const assignment = await autoAssignEligibleSpecialId(publicId, "TOP_UP");
+    if (assignment)
+      emitToUser(publicId, "special-id:assigned", {
+        success: true,
+        data: {
+          specialId: assignment.specialId,
+          expiresAt: assignment.expiresAt.toISOString(),
+          source: "TOP_UP",
+        },
+      });
   }
-  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
+  revalidatePath("/users");
+  revalidatePath(`/users/${publicId}`);
   return Number(after);
 }
 
 export async function createAccount(type, values) {
-  const admin=await requireAdmin();
-  if(type==="user") {
-    const latest=await prisma.user.findMany({select:{publicId:true}});
-    const next=Math.max(1049,...latest.map((item)=>Number(item.publicId.replace(/\D/g,""))||0))+1;
-    const publicId=`USR-${next}`;
-    const phone=normalizePhone(values.phone);
-    const email=normalizeEmail(values.email);
-    if(await prisma.user.findUnique({where:{phone}}))throw new Error("PHONE_ALREADY_EXISTS");
-    if(email&&await prisma.user.findUnique({where:{email}}))throw new Error("EMAIL_ALREADY_EXISTS");
-    const passwordHash=await hashPassword(values.password);
-    await prisma.user.create({data:{publicId,name:values.name,email,phone,passwordHash,country:values.country,status:enumValue(values.status),vipLevel:values.userType==="VIP User"?1:0}});
-    await logActivity(admin,{action:"CREATE_USER",category:"USER_MANAGEMENT",entityType:"User",entityId:publicId,description:`${admin.name} created user ${values.name} (${publicId})`,metadata:{phone,email,country:values.country}});
+  const admin = await requireAdmin();
+  if (type === "user") {
+    const latest = await prisma.user.findMany({ select: { publicId: true } });
+    const next =
+      Math.max(
+        1049,
+        ...latest.map((item) => Number(item.publicId.replace(/\D/g, "")) || 0),
+      ) + 1;
+    const publicId = `USR-${next}`;
+    const phone = normalizePhone(values.phone);
+    const email = normalizeEmail(values.email);
+    if (await prisma.user.findUnique({ where: { phone } }))
+      throw new Error("PHONE_ALREADY_EXISTS");
+    if (email && (await prisma.user.findUnique({ where: { email } })))
+      throw new Error("EMAIL_ALREADY_EXISTS");
+    const passwordHash = await hashPassword(values.password);
+    await prisma.user.create({
+      data: {
+        publicId,
+        name: values.name,
+        email,
+        phone,
+        passwordHash,
+        country: values.country,
+        status: enumValue(values.status),
+        vipLevel: values.userType === "VIP User" ? 1 : 0,
+      },
+    });
+    await logActivity(admin, {
+      action: "CREATE_USER",
+      category: "USER_MANAGEMENT",
+      entityType: "User",
+      entityId: publicId,
+      description: `${admin.name} created user ${values.name} (${publicId})`,
+      metadata: { phone, email, country: values.country },
+    });
     revalidatePath("/users");
   } else {
-    const latest=await prisma.talent.findMany({select:{publicId:true}});
-    const next=Math.max(2099,...latest.map((item)=>Number(item.publicId.replace(/\D/g,""))||0))+1;
-    const publicId=`TLT-${next}`;
-    await prisma.talent.create({data:{publicId,displayName:values.displayName,legalName:values.name,email:values.email,phone:values.phone,country:values.country,type:enumValue(values.talentType),verification:enumValue(values.verificationStatus),status:"PENDING"}});
-    await logActivity(admin,{action:"CREATE_TALENT",category:"TALENT_MANAGEMENT",entityType:"Talent",entityId:publicId,description:`${admin.name} created host ${values.displayName} (${publicId})`,metadata:{email:values.email,type:values.talentType}});
+    const latest = await prisma.talent.findMany({ select: { publicId: true } });
+    const next =
+      Math.max(
+        2099,
+        ...latest.map((item) => Number(item.publicId.replace(/\D/g, "")) || 0),
+      ) + 1;
+    const publicId = `TLT-${next}`;
+    await prisma.talent.create({
+      data: {
+        publicId,
+        displayName: values.displayName,
+        legalName: values.name,
+        email: values.email,
+        phone: values.phone,
+        country: values.country,
+        type: enumValue(values.talentType),
+        verification: enumValue(values.verificationStatus),
+        status: "PENDING",
+      },
+    });
+    await logActivity(admin, {
+      action: "CREATE_TALENT",
+      category: "TALENT_MANAGEMENT",
+      entityType: "Talent",
+      entityId: publicId,
+      description: `${admin.name} created host ${values.displayName} (${publicId})`,
+      metadata: { email: values.email, type: values.talentType },
+    });
     revalidatePath("/talents");
   }
 }
 
-export async function createBan({publicId,target,reason,durationMinutes,permanent,proofImage,macAddress}) {
-  const admin=await requireAdmin();
-  const isTalent=publicId.startsWith("T");
-  const owner=isTalent ? await prisma.talent.findUniqueOrThrow({where:{publicId}}) : await prisma.user.findUniqueOrThrow({where:{publicId}});
+export async function createBan({
+  publicId,
+  target,
+  reason,
+  durationMinutes,
+  permanent,
+  proofImage,
+  macAddress,
+}) {
+  const admin = await requireAdmin();
+  const isTalent = publicId.startsWith("T");
+  const owner = isTalent
+    ? await prisma.talent.findUniqueOrThrow({ where: { publicId } })
+    : await prisma.user.findUniqueOrThrow({ where: { publicId } });
   let device;
-  if(target==="DEVICE") device=await prisma.device.findFirstOrThrow({where:{...(isTalent?{talentId:owner.id}:{userId:owner.id}),...(macAddress?{macAddress}:{})},orderBy:{lastLoginAt:"desc"}});
-  const minutes=permanent?null:Number(durationMinutes);
-  await prisma.ban.create({data:{target,userId:!isTalent&&target==="USER"?owner.id:null,talentId:isTalent&&target==="USER"?owner.id:null,deviceId:device?.id,adminId:admin.id,reason,proofImage:proofImage||null,durationMinutes:minutes,expiresAt:minutes?new Date(Date.now()+minutes*60000):null}});
-  if(target==="DEVICE")await prisma.device.update({where:{id:device.id},data:{isBanned:true}});
-  else if(isTalent)await prisma.talent.update({where:{id:owner.id},data:{status:"BANNED"}});
-  else await prisma.user.update({where:{id:owner.id},data:{status:"BANNED"}});
-  await logActivity(admin,{action:target==="DEVICE"?"BAN_DEVICE":"BAN_ACCOUNT",category:"SECURITY",entityType:isTalent?"Talent":"User",entityId:publicId,description:`${admin.name} banned the ${target.toLowerCase()} for ${isTalent?"host":"user"} ${publicId}`,metadata:{reason,durationMinutes:minutes,permanent}});
-  if(!isTalent&&target==="USER"){
-    const payload={success:true,data:{sessionVersion:owner.sessionVersion,forcedLogoutAt:owner.forcedLogoutAt?.toISOString()??null,isBanned:true,banReason:reason,banExpiresAt:minutes?new Date(Date.now()+minutes*60000).toISOString():null}};
-    emitToUser(publicId,"account:banned",payload);
-    globalThis.portalScheduleBanExpiry?.(publicId,payload.data.banExpiresAt);
+  if (target === "DEVICE")
+    device = await prisma.device.findFirstOrThrow({
+      where: {
+        ...(isTalent ? { talentId: owner.id } : { userId: owner.id }),
+        ...(macAddress ? { macAddress } : {}),
+      },
+      orderBy: { lastLoginAt: "desc" },
+    });
+  const minutes = permanent ? null : Number(durationMinutes);
+  await prisma.ban.create({
+    data: {
+      target,
+      userId: !isTalent && target === "USER" ? owner.id : null,
+      talentId: isTalent && target === "USER" ? owner.id : null,
+      deviceId: device?.id,
+      adminId: admin.id,
+      reason,
+      proofImage: proofImage || null,
+      durationMinutes: minutes,
+      expiresAt: minutes ? new Date(Date.now() + minutes * 60000) : null,
+    },
+  });
+  if (target === "DEVICE")
+    await prisma.device.update({
+      where: { id: device.id },
+      data: { isBanned: true },
+    });
+  else if (isTalent)
+    await prisma.talent.update({
+      where: { id: owner.id },
+      data: { status: "BANNED" },
+    });
+  else
+    await prisma.user.update({
+      where: { id: owner.id },
+      data: { status: "BANNED" },
+    });
+  await logActivity(admin, {
+    action: target === "DEVICE" ? "BAN_DEVICE" : "BAN_ACCOUNT",
+    category: "SECURITY",
+    entityType: isTalent ? "Talent" : "User",
+    entityId: publicId,
+    description: `${admin.name} banned the ${target.toLowerCase()} for ${isTalent ? "host" : "user"} ${publicId}`,
+    metadata: { reason, durationMinutes: minutes, permanent },
+  });
+  if (!isTalent && target === "USER") {
+    const payload = {
+      success: true,
+      data: {
+        sessionVersion: owner.sessionVersion,
+        forcedLogoutAt: owner.forcedLogoutAt?.toISOString() ?? null,
+        isBanned: true,
+        banReason: reason,
+        banExpiresAt: minutes
+          ? new Date(Date.now() + minutes * 60000).toISOString()
+          : null,
+      },
+    };
+    emitToUser(publicId, "account:banned", payload);
+    globalThis.portalScheduleBanExpiry?.(publicId, payload.data.banExpiresAt);
   }
-  if(!isTalent&&target==="DEVICE")emitToUser(publicId,"device:banned",{success:true,data:{macAddress:device.macAddress,reason,banExpiresAt:minutes?new Date(Date.now()+minutes*60000).toISOString():null}});
-  revalidatePath(isTalent?"/talents":"/users");
+  if (!isTalent && target === "DEVICE")
+    emitToUser(publicId, "device:banned", {
+      success: true,
+      data: {
+        macAddress: device.macAddress,
+        reason,
+        banExpiresAt: minutes
+          ? new Date(Date.now() + minutes * 60000).toISOString()
+          : null,
+      },
+    });
+  revalidatePath(isTalent ? "/talents" : "/users");
 }
 
 export async function unbanUser(publicId, reason) {
-  const admin=await requireAdmin();
-  const isTalent=publicId.startsWith("T");
-  const owner=isTalent?await prisma.talent.findUniqueOrThrow({where:{publicId}}):await prisma.user.findUniqueOrThrow({where:{publicId}});
-  const now=new Date();
-  const revoked=await prisma.$transaction(async (tx) => {
-    const result=await tx.ban.updateMany({where:{...(isTalent?{talentId:owner.id}:{userId:owner.id}),target:"USER",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:now}}]},data:{revokedAt:now}});
-    if(isTalent)await tx.talent.update({where:{id:owner.id},data:{status:"ACTIVE"}});
-    else await tx.user.update({where:{id:owner.id},data:{status:"ACTIVE"}});
+  const admin = await requireAdmin();
+  const isTalent = publicId.startsWith("T");
+  const owner = isTalent
+    ? await prisma.talent.findUniqueOrThrow({ where: { publicId } })
+    : await prisma.user.findUniqueOrThrow({ where: { publicId } });
+  const now = new Date();
+  const revoked = await prisma.$transaction(async (tx) => {
+    const result = await tx.ban.updateMany({
+      where: {
+        ...(isTalent ? { talentId: owner.id } : { userId: owner.id }),
+        target: "USER",
+        revokedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      data: { revokedAt: now },
+    });
+    if (isTalent)
+      await tx.talent.update({
+        where: { id: owner.id },
+        data: { status: "ACTIVE" },
+      });
+    else
+      await tx.user.update({
+        where: { id: owner.id },
+        data: { status: "ACTIVE" },
+      });
     return result.count;
   });
-  await logActivity(admin,{action:"UNBAN_ACCOUNT",category:"SECURITY",entityType:isTalent?"Talent":"User",entityId:publicId,description:`${admin.name} restored login access for ${isTalent?"host":"user"} ${publicId}`,metadata:{reason,revokedBans:revoked}});
-  if(!isTalent)emitToUser(publicId,"account:unbanned",{success:true,data:{sessionVersion:owner.sessionVersion,forcedLogoutAt:owner.forcedLogoutAt?.toISOString()??null,isBanned:false,banReason:null,banExpiresAt:null}});
-  revalidatePath(isTalent?"/talents":"/users"); revalidatePath(`/${isTalent?"talents":"users"}/${publicId}`);
+  await logActivity(admin, {
+    action: "UNBAN_ACCOUNT",
+    category: "SECURITY",
+    entityType: isTalent ? "Talent" : "User",
+    entityId: publicId,
+    description: `${admin.name} restored login access for ${isTalent ? "host" : "user"} ${publicId}`,
+    metadata: { reason, revokedBans: revoked },
+  });
+  if (!isTalent)
+    emitToUser(publicId, "account:unbanned", {
+      success: true,
+      data: {
+        sessionVersion: owner.sessionVersion,
+        forcedLogoutAt: owner.forcedLogoutAt?.toISOString() ?? null,
+        isBanned: false,
+        banReason: null,
+        banExpiresAt: null,
+      },
+    });
+  revalidatePath(isTalent ? "/talents" : "/users");
+  revalidatePath(`/${isTalent ? "talents" : "users"}/${publicId}`);
 }
 
 export async function forceLogoutUser(publicId, reason) {
-  const admin=await requireAdmin();
-  const user=await prisma.user.update({where:{publicId},data:{sessionVersion:{increment:1},forcedLogoutAt:new Date()},select:{id:true,sessionVersion:true,forcedLogoutAt:true}});
-  const ban=await prisma.ban.findFirst({where:{userId:user.id,target:"USER",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:new Date()}}]},orderBy:{createdAt:"desc"}});
-  await logActivity(admin,{action:"FORCE_LOGOUT",category:"SECURITY",entityType:"User",entityId:publicId,description:`${admin.name} forced user ${publicId} to log out of the application`,metadata:{reason,sessionVersion:user.sessionVersion}});
-  emitToUser(publicId,"session:force-logout",{success:true,data:{sessionVersion:user.sessionVersion,forcedLogoutAt:user.forcedLogoutAt.toISOString(),isBanned:Boolean(ban),banReason:ban?.reason??null,banExpiresAt:ban?.expiresAt?.toISOString()??null}});
+  const admin = await requireAdmin();
+  const user = await prisma.user.update({
+    where: { publicId },
+    data: { sessionVersion: { increment: 1 }, forcedLogoutAt: new Date() },
+    select: { id: true, sessionVersion: true, forcedLogoutAt: true },
+  });
+  const ban = await prisma.ban.findFirst({
+    where: {
+      userId: user.id,
+      target: "USER",
+      revokedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  await logActivity(admin, {
+    action: "FORCE_LOGOUT",
+    category: "SECURITY",
+    entityType: "User",
+    entityId: publicId,
+    description: `${admin.name} forced user ${publicId} to log out of the application`,
+    metadata: { reason, sessionVersion: user.sessionVersion },
+  });
+  emitToUser(publicId, "session:force-logout", {
+    success: true,
+    data: {
+      sessionVersion: user.sessionVersion,
+      forcedLogoutAt: user.forcedLogoutAt.toISOString(),
+      isBanned: Boolean(ban),
+      banReason: ban?.reason ?? null,
+      banExpiresAt: ban?.expiresAt?.toISOString() ?? null,
+    },
+  });
   globalThis.portalDisconnectUser?.(publicId);
-  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
+  revalidatePath("/users");
+  revalidatePath(`/users/${publicId}`);
 }
 
 export async function unbanDevice(publicId, macAddress, reason) {
-  const admin=await requireAdmin();
-  const user=await prisma.user.findUniqueOrThrow({where:{publicId}});
-  const device=await prisma.device.findFirstOrThrow({where:{userId:user.id,macAddress}});
-  const now=new Date();
-  const revoked=await prisma.$transaction(async (tx) => {
-    const result=await tx.ban.updateMany({where:{deviceId:device.id,target:"DEVICE",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:now}}]},data:{revokedAt:now}});
-    await tx.device.update({where:{id:device.id},data:{isBanned:false}});
+  const admin = await requireAdmin();
+  const user = await prisma.user.findUniqueOrThrow({ where: { publicId } });
+  const device = await prisma.device.findFirstOrThrow({
+    where: { userId: user.id, macAddress },
+  });
+  const now = new Date();
+  const revoked = await prisma.$transaction(async (tx) => {
+    const result = await tx.ban.updateMany({
+      where: {
+        deviceId: device.id,
+        target: "DEVICE",
+        revokedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      data: { revokedAt: now },
+    });
+    await tx.device.update({
+      where: { id: device.id },
+      data: { isBanned: false },
+    });
     return result.count;
   });
-  await logActivity(admin,{action:"UNBAN_DEVICE",category:"SECURITY",entityType:"User",entityId:publicId,description:`${admin.name} unbanned device ${macAddress} for user ${publicId}`,metadata:{reason,macAddress,revokedBans:revoked}});
-  emitToUser(publicId,"device:unbanned",{success:true,data:{macAddress,reason}});
-  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
+  await logActivity(admin, {
+    action: "UNBAN_DEVICE",
+    category: "SECURITY",
+    entityType: "User",
+    entityId: publicId,
+    description: `${admin.name} unbanned device ${macAddress} for user ${publicId}`,
+    metadata: { reason, macAddress, revokedBans: revoked },
+  });
+  emitToUser(publicId, "device:unbanned", {
+    success: true,
+    data: { macAddress, reason },
+  });
+  revalidatePath("/users");
+  revalidatePath(`/users/${publicId}`);
 }
 
 export async function resetUserPassword(publicId, reason) {
-  const admin=await requireSuperAdmin();
-  const temporaryPassword=generateTemporaryPassword();
-  const passwordHash=await hashPassword(temporaryPassword);
-  const user=await prisma.user.update({where:{publicId},data:{passwordHash,sessionVersion:{increment:1},forcedLogoutAt:new Date()},select:{sessionVersion:true,forcedLogoutAt:true}});
-  await logActivity(admin,{action:"RESET_USER_PASSWORD",category:"SECURITY",entityType:"User",entityId:publicId,description:`${admin.name} reset the password for user ${publicId}`,metadata:{reason}});
-  emitToUser(publicId,"session:force-logout",{success:true,data:{sessionVersion:user.sessionVersion,forcedLogoutAt:user.forcedLogoutAt.toISOString(),isBanned:false,banReason:null,banExpiresAt:null,reason:"PASSWORD_RESET"}});
+  const admin = await requireSuperAdmin();
+  const temporaryPassword = generateTemporaryPassword();
+  const passwordHash = await hashPassword(temporaryPassword);
+  const user = await prisma.user.update({
+    where: { publicId },
+    data: {
+      passwordHash,
+      sessionVersion: { increment: 1 },
+      forcedLogoutAt: new Date(),
+    },
+    select: { sessionVersion: true, forcedLogoutAt: true },
+  });
+  await logActivity(admin, {
+    action: "RESET_USER_PASSWORD",
+    category: "SECURITY",
+    entityType: "User",
+    entityId: publicId,
+    description: `${admin.name} reset the password for user ${publicId}`,
+    metadata: { reason },
+  });
+  emitToUser(publicId, "session:force-logout", {
+    success: true,
+    data: {
+      sessionVersion: user.sessionVersion,
+      forcedLogoutAt: user.forcedLogoutAt.toISOString(),
+      isBanned: false,
+      banReason: null,
+      banExpiresAt: null,
+      reason: "PASSWORD_RESET",
+    },
+  });
   globalThis.portalDisconnectUser?.(publicId);
-  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
-  return {temporaryPassword};
+  revalidatePath("/users");
+  revalidatePath(`/users/${publicId}`);
+  return { temporaryPassword };
 }
 
 export async function deleteUserAccount(publicId, reason) {
-  const admin=await requireSuperAdmin();
-  const user=await prisma.user.findUniqueOrThrow({where:{publicId}});
-  const deletedAt=new Date();
-  await prisma.user.update({where:{id:user.id},data:{name:"Deleted User",email:null,phone:`deleted-${user.id}`,profileImage:null,passwordHash:null,status:"BANNED",deletedAt,forcedLogoutAt:deletedAt,sessionVersion:{increment:1}}});
-  await logActivity(admin,{action:"DELETE_USER_ACCOUNT",category:"USER_MANAGEMENT",entityType:"User",entityId:publicId,description:`${admin.name} deleted user account ${publicId}`,metadata:{reason,deletedAt:deletedAt.toISOString()}});
-  emitToUser(publicId,"session:force-logout",{success:true,data:{reason:"ACCOUNT_DELETED"}});
+  const admin = await requireSuperAdmin();
+  const user = await prisma.user.findUniqueOrThrow({ where: { publicId } });
+  const deletedAt = new Date();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      name: "Deleted User",
+      email: null,
+      phone: `deleted-${user.id}`,
+      profileImage: null,
+      passwordHash: null,
+      status: "BANNED",
+      deletedAt,
+      forcedLogoutAt: deletedAt,
+      sessionVersion: { increment: 1 },
+    },
+  });
+  await logActivity(admin, {
+    action: "DELETE_USER_ACCOUNT",
+    category: "USER_MANAGEMENT",
+    entityType: "User",
+    entityId: publicId,
+    description: `${admin.name} deleted user account ${publicId}`,
+    metadata: { reason, deletedAt: deletedAt.toISOString() },
+  });
+  emitToUser(publicId, "session:force-logout", {
+    success: true,
+    data: { reason: "ACCOUNT_DELETED" },
+  });
   globalThis.portalDisconnectUser?.(publicId);
-  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
+  revalidatePath("/users");
+  revalidatePath(`/users/${publicId}`);
 }
 
-export async function controlAudioRoom(roomId, action, reason, durationMinutes) {
-  const admin=await requireAdmin();
+export async function controlAudioRoom(
+  roomId,
+  action,
+  reason,
+  durationMinutes,
+) {
+  const admin = await requireAdmin();
   await reconcileExpiredAudioRoomRestrictions(roomId);
-  const room=await prisma.audioRoom.findUniqueOrThrow({where:{roomId},include:{owner:true}});
-  const now=new Date();
-  const timed=["DISABLE_JOINING","BLOCK","TERMINATE"].includes(action);
-  const minutes=timed?Number(durationMinutes):null;
-  if(timed&&(!Number.isInteger(minutes)||minutes<1))throw new Error("INVALID_AUDIO_ROOM_DURATION");
-  const expiresAt=timed?new Date(now.getTime()+minutes*60000):null;
+  const room = await prisma.audioRoom.findUniqueOrThrow({
+    where: { roomId },
+    include: { owner: true },
+  });
+  const now = new Date();
+  const timed = ["DISABLE_JOINING", "BLOCK", "TERMINATE"].includes(action);
+  const minutes = timed ? Number(durationMinutes) : null;
+  if (timed && (!Number.isInteger(minutes) || minutes < 1))
+    throw new Error("INVALID_AUDIO_ROOM_DURATION");
+  const expiresAt = timed ? new Date(now.getTime() + minutes * 60000) : null;
   let event;
   let description;
-  if(action==="BLOCK"){
-    await prisma.audioRoom.update({where:{id:room.id},data:{isBlocked:true,blockedUntil:expiresAt,status:"BLOCKED",blockedReason:reason,terminatedUntil:null,endedAt:now}});
-    event="audio-room:blocked"; description=`${admin.name} blocked audio room ${roomId}`;
-  }else if(action==="UNBLOCK"){
-    await prisma.audioRoom.update({where:{id:room.id},data:{isBlocked:false,blockedUntil:null,blockedReason:null,status:"IDLE"}});
-    event="audio-room:unblocked"; description=`${admin.name} unblocked audio room ${roomId}`;
-  }else if(action==="DISABLE_JOINING"){
-    await prisma.audioRoom.update({where:{id:room.id},data:{joiningDisabled:true,joiningDisabledUntil:expiresAt}});
-    event="audio-room:joining-disabled"; description=`${admin.name} disabled joining for audio room ${roomId}`;
-  }else if(action==="ENABLE_JOINING"){
-    await prisma.audioRoom.update({where:{id:room.id},data:{joiningDisabled:false,joiningDisabledUntil:null}});
-    event="audio-room:joining-enabled"; description=`${admin.name} enabled joining for audio room ${roomId}`;
-  }else if(action==="TERMINATE"){
-    await prisma.audioRoom.update({where:{id:room.id},data:{status:"TERMINATED",terminatedUntil:expiresAt,isBlocked:false,blockedUntil:null,blockedReason:null,endedAt:now}});
-    event="audio-room:terminated"; description=`${admin.name} terminated audio room ${roomId}`;
-  }else if(action==="RESTORE"){
-    await prisma.audioRoom.update({where:{id:room.id},data:{status:"IDLE",terminatedUntil:null}});
-    event="audio-room:restored"; description=`${admin.name} restored audio room ${roomId}`;
-  }else if(action==="DELETE"){
+  if (action === "BLOCK") {
+    await prisma.audioRoom.update({
+      where: { id: room.id },
+      data: {
+        isBlocked: true,
+        blockedUntil: expiresAt,
+        status: "BLOCKED",
+        blockedReason: reason,
+        terminatedUntil: null,
+        endedAt: now,
+      },
+    });
+    event = "audio-room:blocked";
+    description = `${admin.name} blocked audio room ${roomId}`;
+  } else if (action === "UNBLOCK") {
+    await prisma.audioRoom.update({
+      where: { id: room.id },
+      data: {
+        isBlocked: false,
+        blockedUntil: null,
+        blockedReason: null,
+        status: "IDLE",
+      },
+    });
+    event = "audio-room:unblocked";
+    description = `${admin.name} unblocked audio room ${roomId}`;
+  } else if (action === "DISABLE_JOINING") {
+    await prisma.audioRoom.update({
+      where: { id: room.id },
+      data: { joiningDisabled: true, joiningDisabledUntil: expiresAt },
+    });
+    event = "audio-room:joining-disabled";
+    description = `${admin.name} disabled joining for audio room ${roomId}`;
+  } else if (action === "ENABLE_JOINING") {
+    await prisma.audioRoom.update({
+      where: { id: room.id },
+      data: { joiningDisabled: false, joiningDisabledUntil: null },
+    });
+    event = "audio-room:joining-enabled";
+    description = `${admin.name} enabled joining for audio room ${roomId}`;
+  } else if (action === "TERMINATE") {
+    await prisma.audioRoom.update({
+      where: { id: room.id },
+      data: {
+        status: "TERMINATED",
+        terminatedUntil: expiresAt,
+        isBlocked: false,
+        blockedUntil: null,
+        blockedReason: null,
+        endedAt: now,
+      },
+    });
+    event = "audio-room:terminated";
+    description = `${admin.name} terminated audio room ${roomId}`;
+  } else if (action === "RESTORE") {
+    await prisma.audioRoom.update({
+      where: { id: room.id },
+      data: { status: "IDLE", terminatedUntil: null },
+    });
+    event = "audio-room:restored";
+    description = `${admin.name} restored audio room ${roomId}`;
+  } else if (action === "DELETE") {
     throw new Error("AUDIO_ROOM_PERMANENT_DELETE_DISABLED");
-  }else throw new Error("INVALID_AUDIO_ROOM_ACTION");
-  if(timed)globalThis.portalScheduleAudioRoomRestriction?.(roomId,action,expiresAt);
-  const payload={success:true,data:{roomId,action,reason,durationMinutes:minutes,expiresAt:expiresAt?.toISOString()??null,actedAt:now.toISOString()}};
-  emitToAudioRoom(roomId,event,payload);
-  emitToUser(room.owner.publicId,event,payload);
-  await logActivity(admin,{action:`AUDIO_ROOM_${action}`,category:"USER_MANAGEMENT",entityType:"AudioRoom",entityId:roomId,description,metadata:{reason,ownerId:room.owner.publicId,durationMinutes:minutes,expiresAt:expiresAt?.toISOString()??null}});
+  } else throw new Error("INVALID_AUDIO_ROOM_ACTION");
+  if (timed)
+    globalThis.portalScheduleAudioRoomRestriction?.(roomId, action, expiresAt);
+  const payload = {
+    success: true,
+    data: {
+      roomId,
+      action,
+      reason,
+      durationMinutes: minutes,
+      expiresAt: expiresAt?.toISOString() ?? null,
+      actedAt: now.toISOString(),
+    },
+  };
+  emitToAudioRoom(roomId, event, payload);
+  emitToUser(room.owner.publicId, event, payload);
+  await logActivity(admin, {
+    action: `AUDIO_ROOM_${action}`,
+    category: "USER_MANAGEMENT",
+    entityType: "AudioRoom",
+    entityId: roomId,
+    description,
+    metadata: {
+      reason,
+      ownerId: room.owner.publicId,
+      durationMinutes: minutes,
+      expiresAt: expiresAt?.toISOString() ?? null,
+    },
+  });
   revalidatePath("/users");
   return payload.data;
 }
 
 export async function createSpecialIdDefinition(values) {
-  const admin=await requireAdmin();
-  const code=normalizeSpecialId(values.code);
-  const category=String(values.category??"STANDARD").toUpperCase();
-  if(!["STANDARD","VIP","SVIP"].includes(category))throw new Error("INVALID_SPECIAL_ID_CATEGORY");
-  const duration=Number(values.defaultDurationMinutes);
-  if(!Number.isInteger(duration)||duration<1)throw new Error("INVALID_SPECIAL_ID_DURATION");
-  const definition=await prisma.specialIdDefinition.create({data:{code,category,minimumVipLevel:values.minimumVipLevel?Number(values.minimumVipLevel):null,minimumTopUpAmount:values.minimumTopUpAmount?BigInt(values.minimumTopUpAmount):null,defaultDurationMinutes:duration}});
-  await logActivity(admin,{action:"CREATE_SPECIAL_ID",category:"USER_MANAGEMENT",entityType:"SpecialId",entityId:code,description:`${admin.name} created ${category} Special ID ${code}`,metadata:{...values}});
+  const admin = await requireAdmin();
+  const code = normalizeSpecialId(values.code);
+  const category = String(values.category ?? "STANDARD").toUpperCase();
+  if (!["STANDARD", "VIP", "SVIP"].includes(category))
+    throw new Error("INVALID_SPECIAL_ID_CATEGORY");
+  const duration = Number(values.defaultDurationMinutes);
+  if (!Number.isInteger(duration) || duration < 1)
+    throw new Error("INVALID_SPECIAL_ID_DURATION");
+  const definition = await prisma.specialIdDefinition.create({
+    data: {
+      code,
+      category,
+      minimumVipLevel: values.minimumVipLevel
+        ? Number(values.minimumVipLevel)
+        : null,
+      minimumTopUpAmount: values.minimumTopUpAmount
+        ? BigInt(values.minimumTopUpAmount)
+        : null,
+      defaultDurationMinutes: duration,
+    },
+  });
+  await logActivity(admin, {
+    action: "CREATE_SPECIAL_ID",
+    category: "USER_MANAGEMENT",
+    entityType: "SpecialId",
+    entityId: code,
+    description: `${admin.name} created ${category} Special ID ${code}`,
+    metadata: { ...values },
+  });
   revalidatePath("/users");
-  return {...definition,minimumTopUpAmount:Number(definition.minimumTopUpAmount??0)};
+  return {
+    ...definition,
+    minimumTopUpAmount: Number(definition.minimumTopUpAmount ?? 0),
+  };
 }
 
-export async function assignSpecialId(publicId, definitionId, durationMinutes, reason) {
-  const admin=await requireAdmin();
-  const assignment=await assignDefinitionToUser({publicId,definitionId,durationMinutes,source:"ADMIN"});
-  await logActivity(admin,{action:"ASSIGN_SPECIAL_ID",category:"USER_MANAGEMENT",entityType:"User",entityId:publicId,description:`${admin.name} assigned Special ID ${assignment.specialId} to user ${publicId}`,metadata:{reason,durationMinutes,expiresAt:assignment.expiresAt.toISOString()}});
-  emitToUser(publicId,"special-id:assigned",{success:true,data:{normalId:publicId,specialId:assignment.specialId,effectiveId:assignment.specialId,expiresAt:assignment.expiresAt.toISOString(),source:"ADMIN"}});
-  revalidatePath("/users"); revalidatePath(`/users/${publicId}`);
-  return {id:assignment.id,specialId:assignment.specialId,expiresAt:assignment.expiresAt.toISOString()};
+export async function assignSpecialId(
+  publicId,
+  definitionId,
+  durationMinutes,
+  reason,
+) {
+  const admin = await requireAdmin();
+  const assignment = await assignDefinitionToUser({
+    publicId,
+    definitionId,
+    durationMinutes,
+    source: "ADMIN",
+  });
+  await logActivity(admin, {
+    action: "ASSIGN_SPECIAL_ID",
+    category: "USER_MANAGEMENT",
+    entityType: "User",
+    entityId: publicId,
+    description: `${admin.name} assigned Special ID ${assignment.specialId} to user ${publicId}`,
+    metadata: {
+      reason,
+      durationMinutes,
+      expiresAt: assignment.expiresAt.toISOString(),
+    },
+  });
+  emitToUser(publicId, "special-id:assigned", {
+    success: true,
+    data: {
+      normalId: publicId,
+      specialId: assignment.specialId,
+      effectiveId: assignment.specialId,
+      expiresAt: assignment.expiresAt.toISOString(),
+      source: "ADMIN",
+    },
+  });
+  revalidatePath("/users");
+  revalidatePath(`/users/${publicId}`);
+  return {
+    id: assignment.id,
+    specialId: assignment.specialId,
+    expiresAt: assignment.expiresAt.toISOString(),
+  };
 }
 
 export async function revokeSpecialId(assignmentId, reason) {
-  const admin=await requireAdmin();
+  const admin = await requireAdmin();
   await reconcileExpiredSpecialIds();
-  const assignment=await prisma.specialIdAssignment.findUniqueOrThrow({where:{id:assignmentId},include:{user:true}});
-  await prisma.specialIdAssignment.update({where:{id:assignmentId},data:{status:"REVOKED",revokedAt:new Date()}});
-  await logActivity(admin,{action:"REVOKE_SPECIAL_ID",category:"USER_MANAGEMENT",entityType:"User",entityId:assignment.user.publicId,description:`${admin.name} revoked Special ID ${assignment.specialId} from user ${assignment.user.publicId}`,metadata:{reason}});
-  emitToUser(assignment.user.publicId,"special-id:revoked",{success:true,data:{normalId:assignment.user.publicId,effectiveId:assignment.user.publicId,specialId:null,reason}});
+  const assignment = await prisma.specialIdAssignment.findUniqueOrThrow({
+    where: { id: assignmentId },
+    include: { user: true },
+  });
+  await prisma.specialIdAssignment.update({
+    where: { id: assignmentId },
+    data: { status: "REVOKED", revokedAt: new Date() },
+  });
+  await logActivity(admin, {
+    action: "REVOKE_SPECIAL_ID",
+    category: "USER_MANAGEMENT",
+    entityType: "User",
+    entityId: assignment.user.publicId,
+    description: `${admin.name} revoked Special ID ${assignment.specialId} from user ${assignment.user.publicId}`,
+    metadata: { reason },
+  });
+  emitToUser(assignment.user.publicId, "special-id:revoked", {
+    success: true,
+    data: {
+      normalId: assignment.user.publicId,
+      effectiveId: assignment.user.publicId,
+      specialId: null,
+      reason,
+    },
+  });
   revalidatePath("/users");
 }

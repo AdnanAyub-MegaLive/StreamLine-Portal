@@ -17,7 +17,9 @@ export function OPTIONS() {
 }
 
 async function authenticatedUser(request) {
-  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const token = request.headers
+    .get("authorization")
+    ?.replace(/^Bearer\s+/i, "");
   const payload = mobileSession.verifyMobileSessionToken(token);
 
   if (!payload?.userId) throw new Error("INVALID_SESSION");
@@ -73,10 +75,7 @@ export async function GET(request) {
           },
         },
       },
-      orderBy: [
-        { participantCount: "desc" },
-        { startedAt: "desc" },
-      ],
+      orderBy: [{ participantCount: "desc" }, { startedAt: "desc" }],
       take: 50,
     });
 
