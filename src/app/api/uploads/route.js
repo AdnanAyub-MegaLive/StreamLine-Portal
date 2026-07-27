@@ -446,3 +446,104 @@ export async function PATCH(request) {
     );
   }
 }
+
+export async function DELETE(request) {
+  const session = await auth();
+  if (!session?.user)
+    return Response.json(
+      {
+        success: false,
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Administrator authentication is required.",
+        },
+      },
+      { status: 401 },
+    );
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json(
+      {
+        success: false,
+        error: {
+          code: "INVALID_JSON",
+          message: "Request body must be valid JSON.",
+        },
+      },
+      { status: 400 },
+    );
+  }
+
+  const assetId = String(body?.assetId ?? "").trim();
+  const reason = String(body?.reason ?? "").trim().slice(0, 500);
+  if (!assetId || !reason)
+    return Response.json(
+      {
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Upload ID and deletion reason are required.",
+        },
+      },
+      { status: 422 },
+    );
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const asset = await tx.uploadAsset.findUniqueOrThrow({
+        where: { publicId: assetId },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          fileName: true,
+          mimeType: true,
+          fileSize: true,
+          _count: { select: { assignments: true } },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          action: "UPLOAD_ASSET_DELETED",
+          category: "CONTENT_MANAGEMENT",
+          entityType: "UploadAsset",
+          entityId: assetId,
+          description: `${session.user.name ?? "Administrator"} permanently deleted uploaded asset ${asset.name}.`,
+          metadata: {
+            reason,
+            fileName: asset.fileName,
+            mimeType: asset.mimeType,
+            fileSize: asset.fileSize,
+            uploadCategory: asset.category,
+            removedAssignments: asset._count.assignments,
+          },
+        },
+      });
+      await tx.uploadAsset.delete({ where: { id: asset.id } });
+    });
+    return Response.json({ success: true, data: { assetId } });
+  } catch (error) {
+    if (error?.code === "P2025")
+      return Response.json(
+        {
+          success: false,
+          error: { code: "ASSET_NOT_FOUND", message: "Upload not found." },
+        },
+        { status: 404 },
+      );
+    console.error("Asset deletion failed", error);
+    return Response.json(
+      {
+        success: false,
+        error: {
+          code: "DELETE_FAILED",
+          message: "Unable to delete this upload right now.",
+        },
+      },
+      { status: 500 },
+    );
+  }
+}

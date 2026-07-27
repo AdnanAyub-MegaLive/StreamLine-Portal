@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis;
-const prismaSchemaVersion = "2026-07-27-agency-applications-v9";
+const prismaSchemaVersion = "2026-07-27-agency-application-review-v10";
 const requiredUserFields = ["sessionVersion", "forcedLogoutAt", "passwordHash", "deletedAt", "totalTopUp", "gender", "dob"];
 
 const createPrismaClient = () => new PrismaClient({
@@ -13,11 +13,13 @@ const cachedUserFields = globalForPrisma.prisma?._runtimeDataModel?.models?.User
 const cachedAudioRoomFields = globalForPrisma.prisma?._runtimeDataModel?.models?.AudioRoom?.fields?.map((field) => field.name) ?? [];
 const cachedUploadAssetFields = globalForPrisma.prisma?._runtimeDataModel?.models?.UploadAsset?.fields?.map((field) => field.name) ?? [];
 const cachedUploadAssignmentFields = globalForPrisma.prisma?._runtimeDataModel?.models?.UploadAssetAssignment?.fields?.map((field) => field.name) ?? [];
+const cachedAgencyApplicationFields = globalForPrisma.prisma?._runtimeDataModel?.models?.AgencyApplication?.fields?.map((field) => field.name) ?? [];
 const cachedClientMatchesSchema = globalForPrisma.prismaSchemaVersion === prismaSchemaVersion
   && requiredUserFields.every((field) => cachedUserFields.includes(field))
   && ["joiningDisabledUntil","blockedUntil","terminatedUntil"].every((field)=>cachedAudioRoomFields.includes(field))
   && ["details","tags","isGlobal"].every((field)=>cachedUploadAssetFields.includes(field))
   && ["durationMinutes","expiresAt"].every((field)=>cachedUploadAssignmentFields.includes(field))
+  && ["reviewedById","reviewedAt","reviewNote","rejectionReason"].every((field)=>cachedAgencyApplicationFields.includes(field))
   && ["userAlbumItem","specialIdAssignment","specialIdDefinition","gameLog","liveSession","talentPerformance","talentViolation","audioRoom","uploadAsset","uploadAssetAssignment","agencyApplication"].every((model)=>Boolean(globalForPrisma.prisma?.[model]));
 
 // Fast Refresh keeps globalThis alive. Reuse only a client that contains every

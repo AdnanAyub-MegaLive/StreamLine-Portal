@@ -4,6 +4,7 @@ import { auth, signOut } from "../../../auth";
 import FeatureSearch from "../components/feature-search";
 import AgencyTabs from "./agency-tabs";
 import BrandLogo from "../components/brand-logo";
+import { prisma } from "../../lib/prisma";
 
 const nav = [
   ["Overview", "/home"],
@@ -19,6 +20,49 @@ const nav = [
 export default async function AgenciesPage() {
   const session = await auth();
   if (!session?.user) redirect("/");
+  const records=await prisma.agencyApplication.findMany({
+    select:{
+      publicId:true,
+      agencyName:true,
+      email:true,
+      whatsapp:true,
+      bdCode:true,
+      country:true,
+      status:true,
+      createdAt:true,
+      updatedAt:true,
+      reviewedAt:true,
+      reviewNote:true,
+      rejectionReason:true,
+      reviewedBy:{select:{name:true,email:true}},
+      user:{select:{publicId:true,name:true,phone:true,profileImage:true}},
+    },
+    orderBy:{createdAt:"desc"},
+    take:500,
+  });
+  const applications=records.map((application)=>({
+    id:application.publicId,
+    agencyName:application.agencyName,
+    email:application.email,
+    whatsapp:application.whatsapp,
+    bdCode:application.bdCode,
+    country:application.country,
+    status:application.status,
+    submittedAt:application.createdAt.toISOString(),
+    updatedAt:application.updatedAt.toISOString(),
+    reviewedAt:application.reviewedAt?.toISOString()??null,
+    reviewNote:application.reviewNote,
+    rejectionReason:application.rejectionReason,
+    reviewedBy:application.reviewedBy?{name:application.reviewedBy.name,email:application.reviewedBy.email}:null,
+    applicant:{
+      id:application.user.publicId,
+      name:application.user.name,
+      phone:application.user.phone,
+      profileImage:application.user.profileImage,
+    },
+    cnicFrontUrl:`/api/agencies/applications/${application.publicId}/cnic/front`,
+    cnicBackUrl:`/api/agencies/applications/${application.publicId}/cnic/back`,
+  }));
 
   return (
     <main className="min-h-screen bg-[#f4f8f7] text-[#142c2a]">
@@ -75,7 +119,7 @@ export default async function AgenciesPage() {
               salary activity.
             </p>
           </div>
-          <AgencyTabs />
+          <AgencyTabs applications={applications}/>
         </div>
       </section>
     </main>

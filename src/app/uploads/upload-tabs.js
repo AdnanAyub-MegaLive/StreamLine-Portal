@@ -30,7 +30,9 @@ export default function UploadTabs({ initialUploads, users }) {
   const [uploads, setUploads] = useState(initialUploads);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [managedAsset, setManagedAsset] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
   async function saveAsset(asset, changes) {
@@ -55,6 +57,27 @@ export default function UploadTabs({ initialUploads, users }) {
       setError(updateError.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteAsset(asset, reason) {
+    setDeleting(true);
+    setError("");
+    try {
+      const response=await fetch("/api/uploads",{
+        method:"DELETE",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({assetId:asset.id,reason}),
+      });
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error?.message||"Deletion failed.");
+      setUploads((current)=>current.filter((item)=>item.id!==asset.id));
+      if(managedAsset?.id===asset.id)setManagedAsset(null);
+      setDeleteTarget(null);
+    } catch(deleteError) {
+      setError(deleteError.message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -120,6 +143,10 @@ export default function UploadTabs({ initialUploads, users }) {
                   setError("");
                   setManagedAsset(item);
                 }}
+                onDelete={() => {
+                  setError("");
+                  setDeleteTarget(item);
+                }}
               />
             ))}
           </div>
@@ -150,63 +177,109 @@ export default function UploadTabs({ initialUploads, users }) {
           onSave={saveAsset}
         />
       )}
+      {deleteTarget && (
+        <DeleteAssetModal
+          asset={deleteTarget}
+          deleting={deleting}
+          error={error}
+          onClose={() => {
+            if(!deleting)setDeleteTarget(null);
+          }}
+          onDelete={deleteAsset}
+        />
+      )}
     </>
   );
 }
 
-function PreviewCard({ item, onManage }) {
+function PreviewCard({ item, onManage, onDelete }) {
   const activeGrants = item.assignedUsers.filter((user) => !user.isExpired);
   return (
     <article className="group overflow-hidden rounded-2xl border border-[#dce8e5] bg-white shadow-[0_7px_22px_rgba(15,65,60,.04)]">
-      <button
-        type="button"
-        onClick={onManage}
-        className="block w-full text-left"
-        aria-label={`Manage ${item.name}`}
-      >
-        <div className="aspect-video bg-[#edf4f2]">
-          <MediaPreview url={item.url} type={item.mimeType} name={item.name} />
+      <div className="aspect-video bg-[#edf4f2]">
+        <MediaPreview url={item.url} type={item.mimeType} name={item.name} />
+      </div>
+      <div className="p-4">
+        <div className="min-w-0">
+          <h4 className="truncate text-sm font-bold">{item.name}</h4>
+          <p className="mt-1 line-clamp-2 min-h-7 text-[10px] leading-3.5 text-[#82938f]">
+            {item.details || "No details added."}
+          </p>
         </div>
-        <div className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h4 className="truncate text-sm font-bold">{item.name}</h4>
-              <p className="mt-1 line-clamp-2 min-h-7 text-[10px] leading-3.5 text-[#82938f]">
-                {item.details || "No details added."}
-              </p>
-            </div>
-            <span className="rounded-lg bg-[#eef7f5] px-2 py-1 text-[9px] font-bold text-[#087f74] transition group-hover:bg-[#087f74] group-hover:text-white">
-              Manage
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {item.tags?.slice(0, 3).map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full bg-[#f1f5f4] px-2 py-1 text-[9px] text-[#60736f]"
+            >
+              #{tag}
             </span>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {item.tags?.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full bg-[#f1f5f4] px-2 py-1 text-[9px] text-[#60736f]"
-              >
-                #{tag}
-              </span>
-            ))}
-            {item.isRoomBackground && (
-              <span className="rounded-full bg-violet-50 px-2 py-1 text-[9px] font-bold text-violet-700">
-                Room background
-              </span>
-            )}
-          </div>
-          <div className="mt-3 flex items-center justify-between border-t border-[#edf2f1] pt-3 text-[9px] text-[#71847f]">
-            <span>
-              {activeGrants.length
-                ? `Granted to ${activeGrants.length} user${activeGrants.length === 1 ? "" : "s"}`
-                : item.isGlobal
-                  ? "Available to all users"
-                  : "No active grants"}
+          ))}
+          {item.isRoomBackground && (
+            <span className="rounded-full bg-violet-50 px-2 py-1 text-[9px] font-bold text-violet-700">
+              Room background
             </span>
-            <span>{formatSize(item.fileSize)}</span>
-          </div>
+          )}
         </div>
-      </button>
+        <div className="mt-3 flex items-center justify-between border-t border-[#edf2f1] pt-3 text-[9px] text-[#71847f]">
+          <span>
+            {activeGrants.length
+              ? `Granted to ${activeGrants.length} user${activeGrants.length === 1 ? "" : "s"}`
+              : item.isGlobal
+                ? "Available to all users"
+                : "No active grants"}
+          </span>
+          <span>{formatSize(item.fileSize)}</span>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onManage}
+            className="rounded-lg bg-[#e7f5f2] px-3 py-2.5 text-[10px] font-bold text-[#087f74] hover:bg-[#d8eeea]"
+          >
+            Manage
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="rounded-lg border border-rose-200 px-3 py-2.5 text-[10px] font-bold text-rose-700 hover:bg-rose-50"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
     </article>
+  );
+}
+
+function DeleteAssetModal({asset,deleting,error,onClose,onDelete}) {
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-[#071f1d]/65 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-asset-title">
+      <form
+        onSubmit={(event)=>{
+          event.preventDefault();
+          onDelete(asset,String(new FormData(event.currentTarget).get("reason")));
+        }}
+        className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="border-b border-[#e5ecea] px-6 py-5">
+          <p className="text-[10px] font-bold tracking-widest text-rose-600 uppercase">Permanent deletion</p>
+          <h3 id="delete-asset-title" className="mt-1 text-lg font-bold">Delete {asset.name}?</h3>
+          <p className="mt-2 text-xs leading-5 text-[#71847f]">The media file and all user assignments will be permanently removed. The mobile application will no longer be able to access this item.</p>
+        </div>
+        <div className="space-y-4 p-6">
+          <label className="block">
+            <span className="mb-2 block text-xs font-bold">Reason for deletion</span>
+            <textarea name="reason" required maxLength={500} rows={3} placeholder="For example: Uploaded by mistake" className={`${inputClass} h-auto resize-none py-3`}/>
+          </label>
+          {error&&<p className="rounded-lg bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-[#e5ecea] bg-[#fafcfc] px-6 py-4">
+          <button type="button" onClick={onClose} disabled={deleting} className="rounded-lg border border-[#d7e4e1] px-4 py-2.5 text-xs font-bold">Cancel</button>
+          <button type="submit" disabled={deleting} className="rounded-lg bg-rose-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">{deleting?"Deleting…":"Delete permanently"}</button>
+        </div>
+      </form>
+    </div>
   );
 }
 
