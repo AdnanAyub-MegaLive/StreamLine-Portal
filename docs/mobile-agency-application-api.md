@@ -42,3 +42,32 @@ Error codes:
 - `VALIDATION` (`422`)
 - `FILE_TOO_LARGE` (`413`)
 - `SUBMISSION_FAILED` (`500`)
+
+## Check the authenticated user's application
+
+```http
+GET /api/agencies/my-application
+Authorization: Bearer <sessionToken>
+```
+
+The endpoint returns the authenticated user's most recently submitted
+application:
+
+```json
+{
+  "success": true,
+  "data": {
+    "application": {
+      "applicationId": "AGA-A1B2C3D4E5F6",
+      "status": "PENDING",
+      "agencyName": "Starlight Network",
+      "createdAt": "2026-07-20T10:00:00.000Z"
+    }
+  }
+}
+```
+
+It returns `{ "application": null }` when the user has never applied or their
+latest application was rejected, allowing the app to show a fresh application
+form. Pending and approved applications are returned. Responses are never
+cached.
