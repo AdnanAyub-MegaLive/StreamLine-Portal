@@ -45,19 +45,19 @@ enum BanTarget {
 }
 
 model Admin {
-  id              String               @id @default(cuid())
-  name            String
-  email           String               @unique
-  passwordHash    String
-  role            String               @default("ADMIN")
-  active          Boolean              @default(true)
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  bans            Ban[]
-  coinAdjustments CoinAdjustment[]
-  verifications   TalentVerification[]
-  salaryChanges   SalaryHistory[]
-  auditLogs       AuditLog[]
+  id                         String               @id @default(cuid())
+  name                       String
+  email                      String               @unique
+  passwordHash               String
+  role                       String               @default("ADMIN")
+  active                     Boolean              @default(true)
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+  bans                       Ban[]
+  coinAdjustments            CoinAdjustment[]
+  verifications              TalentVerification[]
+  salaryChanges              SalaryHistory[]
+  auditLogs                  AuditLog[]
   agencyApplicationsReviewed AgencyApplication[]
 }
 
@@ -80,38 +80,38 @@ model AuditLog {
 }
 
 model User {
-  id              String            @id @default(cuid())
-  publicId        String            @unique
-  name            String
-  email           String?           @unique
-  phone           String            @unique
-  country         String?
-  profileImage    String?
-  gender          String?
-  dob             DateTime?
-  passwordHash    String?
-  role            UserRole          @default(LISTENER)
-  status          AccountStatus     @default(ACTIVE)
-  vipLevel        Int               @default(0)
-  coinBalance     BigInt            @default(0)
-  totalSpent      BigInt            @default(0)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  lastLoginAt     DateTime?
-  sessionVersion  Int               @default(0)
-  forcedLogoutAt  DateTime?
-  deletedAt       DateTime?
-  devices         Device[]
-  sentGifts       GiftTransaction[]
-  bans            Ban[]
-  coinAdjustments CoinAdjustment[]
-  albumItems      UserAlbumItem[]
-  specialIds      SpecialIdAssignment[]
-  gameLogs        GameLog[]
-  audioRooms      AudioRoom[]
-  uploadAssignments UploadAssetAssignment[]
+  id                 String                  @id @default(cuid())
+  publicId           String                  @unique
+  name               String
+  email              String?                 @unique
+  phone              String                  @unique
+  country            String?
+  profileImage       String?
+  gender             String?
+  dob                DateTime?
+  passwordHash       String?
+  role               UserRole                @default(LISTENER)
+  status             AccountStatus           @default(ACTIVE)
+  vipLevel           Int                     @default(0)
+  coinBalance        BigInt                  @default(0)
+  totalSpent         BigInt                  @default(0)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  lastLoginAt        DateTime?
+  sessionVersion     Int                     @default(0)
+  forcedLogoutAt     DateTime?
+  deletedAt          DateTime?
+  devices            Device[]
+  sentGifts          GiftTransaction[]
+  bans               Ban[]
+  coinAdjustments    CoinAdjustment[]
+  albumItems         UserAlbumItem[]
+  specialIds         SpecialIdAssignment[]
+  gameLogs           GameLog[]
+  audioRooms         AudioRoom[]
+  uploadAssignments  UploadAssetAssignment[]
   agencyApplications AgencyApplication[]
-  totalTopUp      BigInt            @default(0)
+  totalTopUp         BigInt                  @default(0)
 
   @@index([status])
   @@index([vipLevel])
@@ -119,20 +119,21 @@ model User {
 }
 
 model UploadAsset {
-  id               String   @id @default(cuid())
-  publicId         String   @unique
+  id               String                  @id @default(cuid())
+  publicId         String                  @unique
   name             String
   details          String?
-  tags             String[] @default([])
+  tags             String[]                @default([])
   category         String
   fileName         String
   mimeType         String
   fileSize         Int
   fileData         Bytes
-  isGlobal         Boolean  @default(true)
-  isRoomBackground Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  actionUrl        String?
+  isGlobal         Boolean                 @default(true)
+  isRoomBackground Boolean                 @default(false)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
   assignments      UploadAssetAssignment[]
 
   @@index([category, createdAt])
@@ -154,27 +155,27 @@ model UploadAssetAssignment {
 }
 
 model AgencyApplication {
-  id            String   @id @default(cuid())
-  publicId      String   @unique
-  userId        String
-  agencyName    String
-  email         String?
-  whatsapp      String
-  bdCode        String
-  country       String?
-  cnicFrontData Bytes
-  cnicFrontMime String
-  cnicBackData  Bytes
-  cnicBackMime  String
-  status        String   @default("PENDING")
-  reviewedById  String?
-  reviewedAt    DateTime?
-  reviewNote    String?
+  id              String    @id @default(cuid())
+  publicId        String    @unique
+  userId          String
+  agencyName      String
+  email           String?
+  whatsapp        String
+  bdCode          String
+  country         String?
+  cnicFrontData   Bytes
+  cnicFrontMime   String
+  cnicBackData    Bytes
+  cnicBackMime    String
+  status          String    @default("PENDING")
+  reviewedById    String?
+  reviewedAt      DateTime?
+  reviewNote      String?
   rejectionReason String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reviewedBy    Admin?   @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy      Admin?    @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([userId])
@@ -341,17 +342,17 @@ model UserAlbumItem {
 }
 
 model SpecialIdAssignment {
-  id           String              @id @default(cuid())
+  id           String               @id @default(cuid())
   userId       String
   definitionId String?
   specialId    String
-  status       String              @default("ACTIVE")
-  source       String              @default("ADMIN")
-  startsAt     DateTime            @default(now())
+  status       String               @default("ACTIVE")
+  source       String               @default("ADMIN")
+  startsAt     DateTime             @default(now())
   expiresAt    DateTime?
   revokedAt    DateTime?
-  createdAt    DateTime            @default(now())
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime             @default(now())
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   definition   SpecialIdDefinition? @relation(fields: [definitionId], references: [id], onDelete: Restrict)
 
   @@index([userId, status])
@@ -377,86 +378,86 @@ model SpecialIdDefinition {
 }
 
 model GameLog {
-  id           String   @id @default(cuid())
-  userId       String
-  gameName     String
-  wager        BigInt
-  payout       BigInt
-  result       String
-  referenceId  String   @unique
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  id          String   @id @default(cuid())
+  userId      String
+  gameName    String
+  wager       BigInt
+  payout      BigInt
+  result      String
+  referenceId String   @unique
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId, createdAt])
 }
 
 model LiveSession {
-  id              String   @id @default(cuid())
-  talentId        String
-  roomId          String
-  streamType      String
-  startedAt       DateTime
-  endedAt         DateTime?
-  peakViewers     Int      @default(0)
-  giftsValue      BigInt   @default(0)
-  status          String   @default("COMPLETED")
-  talent          Talent   @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  talentId    String
+  roomId      String
+  streamType  String
+  startedAt   DateTime
+  endedAt     DateTime?
+  peakViewers Int       @default(0)
+  giftsValue  BigInt    @default(0)
+  status      String    @default("COMPLETED")
+  talent      Talent    @relation(fields: [talentId], references: [id], onDelete: Cascade)
 
   @@index([talentId, startedAt])
 }
 
 model TalentPerformance {
-  id              String   @id @default(cuid())
-  talentId        String
-  period          String
-  liveMinutes     Int
-  uniqueViewers   Int
-  newFollowers    Int
-  giftsValue      BigInt
-  engagementRate  Decimal  @db.Decimal(5, 2)
-  createdAt       DateTime @default(now())
-  talent          Talent   @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  id             String   @id @default(cuid())
+  talentId       String
+  period         String
+  liveMinutes    Int
+  uniqueViewers  Int
+  newFollowers   Int
+  giftsValue     BigInt
+  engagementRate Decimal  @db.Decimal(5, 2)
+  createdAt      DateTime @default(now())
+  talent         Talent   @relation(fields: [talentId], references: [id], onDelete: Cascade)
 
   @@unique([talentId, period])
 }
 
 model TalentViolation {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   talentId    String
   category    String
   severity    String
   description String
-  status      String   @default("OPEN")
+  status      String    @default("OPEN")
   actionTaken String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   resolvedAt  DateTime?
-  talent      Talent   @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  talent      Talent    @relation(fields: [talentId], references: [id], onDelete: Cascade)
 
   @@index([talentId, status, createdAt])
 }
 
 model AudioRoom {
-  id               String   @id @default(cuid())
-  roomId           String   @unique
-  ownerId          String
-  title            String
-  status           String   @default("LIVE")
-  liveAudioUrl     String?
-  recordingUrl     String?
-  participantCount Int      @default(0)
-  joiningDisabled  Boolean  @default(false)
+  id                   String    @id @default(cuid())
+  roomId               String    @unique
+  ownerId              String
+  title                String
+  status               String    @default("LIVE")
+  liveAudioUrl         String?
+  recordingUrl         String?
+  participantCount     Int       @default(0)
+  joiningDisabled      Boolean   @default(false)
   joiningDisabledUntil DateTime?
-  isBlocked        Boolean  @default(false)
-  blockedReason    String?
-  blockedUntil     DateTime?
-  terminatedUntil  DateTime?
-  startedAt        DateTime @default(now())
-  endedAt          DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  owner            User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  isBlocked            Boolean   @default(false)
+  blockedReason        String?
+  blockedUntil         DateTime?
+  terminatedUntil      DateTime?
+  startedAt            DateTime  @default(now())
+  endedAt              DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  owner                User      @relation(fields: [ownerId], references: [id], onDelete: Restrict)
 
+  @@unique([ownerId])
   @@index([ownerId, startedAt])
   @@index([status, startedAt])
-  @@unique([ownerId])
 }

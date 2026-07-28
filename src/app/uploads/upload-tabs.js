@@ -194,6 +194,7 @@ export default function UploadTabs({ initialUploads, users }) {
 
 function PreviewCard({ item, onManage, onDelete }) {
   const activeGrants = item.assignedUsers.filter((user) => !user.isExpired);
+  const isBanner = item.category === "BANNERS";
   return (
     <article className="group overflow-hidden rounded-2xl border border-[#dce8e5] bg-white shadow-[0_7px_22px_rgba(15,65,60,.04)]">
       <div className="aspect-video bg-[#edf4f2]">
@@ -223,7 +224,11 @@ function PreviewCard({ item, onManage, onDelete }) {
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-[#edf2f1] pt-3 text-[9px] text-[#71847f]">
           <span>
-            {activeGrants.length
+            {isBanner
+              ? item.actionUrl
+                ? "Marketing link configured"
+                : "Destination link missing"
+              : activeGrants.length
               ? `Granted to ${activeGrants.length} user${activeGrants.length === 1 ? "" : "s"}`
               : item.isGlobal
                 ? "Available to all users"
@@ -231,6 +236,16 @@ function PreviewCard({ item, onManage, onDelete }) {
           </span>
           <span>{formatSize(item.fileSize)}</span>
         </div>
+        {isBanner && item.actionUrl && (
+          <a
+            href={item.actionUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 block truncate rounded-lg border border-[#d7e5e2] bg-[#f8fbfa] px-3 py-2 text-[9px] font-semibold text-[#087f74] hover:bg-[#edf7f5]"
+          >
+            Test destination ↗
+          </a>
+        )}
         <div className="mt-4 grid grid-cols-2 gap-2">
           <button
             type="button"
@@ -284,9 +299,11 @@ function DeleteAssetModal({asset,deleting,error,onClose,onDelete}) {
 }
 
 function AssetManager({ asset, users, saving, error, onClose, onSave }) {
+  const isBanner = asset.category === "BANNERS";
   const [title, setTitle] = useState(asset.name);
   const [details, setDetails] = useState(asset.details ?? "");
   const [tags, setTags] = useState((asset.tags ?? []).join(", "));
+  const [actionUrl, setActionUrl] = useState(asset.actionUrl ?? "");
   const [grants, setGrants] = useState(
     asset.assignedUsers
       .filter((user) => !user.isExpired)
@@ -319,8 +336,9 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
       name: title.trim(),
       details: details.trim(),
       tags: parseTags(tags),
-      assignmentGrants: grants,
-      isRoomBackground,
+      ...(isBanner
+        ? { actionUrl: actionUrl.trim() }
+        : { assignmentGrants: grants, isRoomBackground }),
     });
   }
 
@@ -392,8 +410,24 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
                 Separate tags with commas.
               </p>
             </Field>
+            {isBanner && (
+              <Field label="Destination URL">
+                <input
+                  type="url"
+                  value={actionUrl}
+                  onChange={(event) => setActionUrl(event.target.value)}
+                  required
+                  placeholder="https://example.com/events/agency-drive"
+                  className={inputClass}
+                />
+                <p className="mt-1.5 text-[10px] text-[#7b8e89]">
+                  The mobile app opens this page in its in-app browser when the
+                  banner is tapped.
+                </p>
+              </Field>
+            )}
           </div>
-          <UserPanel
+          {!isBanner && <UserPanel
             title="Granted to Users"
             query={grantedQuery}
             onQuery={setGrantedQuery}
@@ -423,12 +457,12 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
                 />
               );
             })}
-          </UserPanel>
-          <AssignmentPeriod
+          </UserPanel>}
+          {!isBanner && <AssignmentPeriod
             value={durationMinutes}
             onChange={setDurationMinutes}
-          />
-          <UserPanel
+          />}
+          {!isBanner && <UserPanel
             title="Assign to Users"
             query={assignQuery}
             onQuery={setAssignQuery}
@@ -454,8 +488,8 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
                 }
               />
             ))}
-          </UserPanel>
-          <label className="flex items-center gap-3 rounded-xl border border-[#d7e5e2] bg-[#f8fbfa] p-4">
+          </UserPanel>}
+          {!isBanner && <label className="flex items-center gap-3 rounded-xl border border-[#d7e5e2] bg-[#f8fbfa] p-4">
             <input
               type="checkbox"
               checked={isRoomBackground}
@@ -469,7 +503,7 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
                 background.
               </span>
             </span>
-          </label>
+          </label>}
           {error && (
             <p className="rounded-lg bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">
               {error}
@@ -487,7 +521,7 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
           </button>
           <button
             type="submit"
-            disabled={saving || !title.trim()}
+            disabled={saving || !title.trim() || (isBanner && !actionUrl.trim())}
             className="rounded-lg bg-[#087f74] px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save changes"}
@@ -551,9 +585,11 @@ function UserRow({ user, meta, action, tone, onAction }) {
 }
 
 function UploadModal({ active, users, onClose, onCreated }) {
+  const isBanner = active === "Banners";
   const [name, setName] = useState("");
   const [details, setDetails] = useState("");
   const [tags, setTags] = useState("");
+  const [actionUrl, setActionUrl] = useState("");
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [assignedUserIds, setAssignedUserIds] = useState([]);
@@ -597,9 +633,12 @@ function UploadModal({ active, users, onClose, onCreated }) {
     form.set("tags", JSON.stringify(parseTags(tags)));
     form.set("category", categories[active]);
     form.set("file", file);
-    form.set("assignedUserIds", JSON.stringify(assignedUserIds));
-    form.set("assignmentDurationMinutes", String(durationMinutes));
-    form.set("isRoomBackground", String(isRoomBackground));
+    form.set("actionUrl", actionUrl.trim());
+    if (!isBanner) {
+      form.set("assignedUserIds", JSON.stringify(assignedUserIds));
+      form.set("assignmentDurationMinutes", String(durationMinutes));
+      form.set("isRoomBackground", String(isRoomBackground));
+    }
     try {
       const response = await fetch("/api/uploads", {
         method: "POST",
@@ -674,6 +713,22 @@ function UploadModal({ active, users, onClose, onCreated }) {
               className={inputClass}
             />
           </Field>
+          {isBanner && (
+            <Field label="Destination URL">
+              <input
+                type="url"
+                value={actionUrl}
+                onChange={(event) => setActionUrl(event.target.value)}
+                required
+                placeholder="https://example.com/events/agency-drive"
+                className={inputClass}
+              />
+              <p className="mt-1.5 text-[10px] text-[#7b8e89]">
+                Users will open this URL in the application browser after
+                tapping the banner.
+              </p>
+            </Field>
+          )}
           <Field label="Media file">
             <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#cbded9] bg-[#f8fbfa] px-5 text-center">
               <strong className="text-xs text-[#087f74]">
@@ -705,11 +760,11 @@ function UploadModal({ active, users, onClose, onCreated }) {
               </p>
             </div>
           )}
-          <AssignmentPeriod
+          {!isBanner && <AssignmentPeriod
             value={durationMinutes}
             onChange={setDurationMinutes}
-          />
-          <UserPanel
+          />}
+          {!isBanner && <UserPanel
             title="Assign to Users"
             query={userQuery}
             onQuery={setUserQuery}
@@ -726,8 +781,8 @@ function UploadModal({ active, users, onClose, onCreated }) {
                 }
               />
             ))}
-          </UserPanel>
-          {assignedUserIds.length > 0 && (
+          </UserPanel>}
+          {!isBanner && assignedUserIds.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {assignedUserIds.map((id) => {
                 const user = users.find((item) => item.id === id);
@@ -748,7 +803,7 @@ function UploadModal({ active, users, onClose, onCreated }) {
               })}
             </div>
           )}
-          <label className="flex items-center gap-3 rounded-xl border border-[#dce8e5] bg-[#f8fbfa] p-4">
+          {!isBanner && <label className="flex items-center gap-3 rounded-xl border border-[#dce8e5] bg-[#f8fbfa] p-4">
             <input
               type="checkbox"
               checked={isRoomBackground}
@@ -756,7 +811,7 @@ function UploadModal({ active, users, onClose, onCreated }) {
               className="h-5 w-5 accent-[#087f74]"
             />
             <span className="text-xs font-bold">Use as a Background</span>
-          </label>
+          </label>}
           {error && (
             <p className="rounded-lg bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">
               {error}
@@ -774,7 +829,12 @@ function UploadModal({ active, users, onClose, onCreated }) {
           </button>
           <button
             type="submit"
-            disabled={!name.trim() || !file || saving}
+            disabled={
+              !name.trim() ||
+              !file ||
+              saving ||
+              (isBanner && !actionUrl.trim())
+            }
             className="rounded-lg bg-[#087f74] px-5 py-2.5 text-xs font-bold text-white disabled:opacity-40"
           >
             {saving ? "Uploading…" : "Upload asset"}

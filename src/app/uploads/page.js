@@ -32,6 +32,7 @@ export default async function UploadsPage() {
         fileName: true,
         mimeType: true,
         fileSize: true,
+        actionUrl: true,
         isGlobal: true,
         isRoomBackground: true,
         createdAt: true,

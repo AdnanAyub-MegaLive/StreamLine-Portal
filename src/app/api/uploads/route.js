@@ -37,6 +37,29 @@ function cleanTags(value) {
     .map((item) => item.slice(0, 40));
 }
 
+function cleanActionUrl(value, required = false) {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    if (required) {
+      const error = new Error("A destination URL is required for banners.");
+      error.code = "VALIDATION_ERROR";
+      throw error;
+    }
+    return null;
+  }
+  try {
+    const url = new URL(raw);
+    if (!["http:", "https:"].includes(url.protocol)) throw new Error();
+    return url.toString();
+  } catch {
+    const error = new Error(
+      "Destination URL must be a valid HTTP or HTTPS address.",
+    );
+    error.code = "VALIDATION_ERROR";
+    throw error;
+  }
+}
+
 async function resolveUsers(client, ids) {
   if (!ids.length) return [];
   const users = await client.user.findMany({
@@ -114,6 +137,8 @@ export async function POST(request) {
       tags = cleanTags(form.get("tags"));
     }
     const category = String(form.get("category") ?? "");
+    const isBanner = category === "BANNERS";
+    const actionUrl = cleanActionUrl(form.get("actionUrl"), isBanner);
     let selectedIds = [];
     try {
       selectedIds = publicIds(
@@ -131,6 +156,7 @@ export async function POST(request) {
         { status: 422 },
       );
     }
+    if (isBanner) selectedIds = [];
     const assignmentMinutes = Number(
       form.get("assignmentDurationMinutes") ?? 10080,
     );
@@ -147,8 +173,9 @@ export async function POST(request) {
         { status: 422 },
       );
     const isRoomBackground =
-      form.get("isRoomBackground") === "true" ||
-      category === "ROOM_BACKGROUNDS";
+      !isBanner &&
+      (form.get("isRoomBackground") === "true" ||
+        category === "ROOM_BACKGROUNDS");
     const file = form.get("file");
     if (!name || name.length > 80)
       return Response.json(
@@ -221,7 +248,8 @@ export async function POST(request) {
           mimeType: file.type,
           fileSize: file.size,
           fileData: bytes,
-          isGlobal: users.length === 0,
+          actionUrl,
+          isGlobal: isBanner || users.length === 0,
           isRoomBackground,
         },
       });
@@ -249,6 +277,7 @@ export async function POST(request) {
             mimeType: file.type,
             fileSize: file.size,
             assignedUserIds: selectedIds,
+            actionUrl,
             isRoomBackground,
           },
         },
@@ -340,8 +369,14 @@ export async function PATCH(request) {
     const asset = await prisma.$transaction(async (tx) => {
       const current = await tx.uploadAsset.findUniqueOrThrow({
         where: { publicId: assetId },
-        select: { id: true, name: true },
+        select: { id: true, name: true, category: true },
       });
+      const isBanner = current.category === "BANNERS";
+      if (isBanner && updatesAssignments) {
+        const error = new Error("Banners cannot be assigned to users.");
+        error.code = "VALIDATION_ERROR";
+        throw error;
+      }
       if (updatesAssignments) {
         await tx.uploadAssetAssignment.deleteMany({
           where: { assetId: current.id },
@@ -368,6 +403,10 @@ export async function PATCH(request) {
         error.code = "VALIDATION_ERROR";
         throw error;
       }
+      const actionUrl =
+        body?.actionUrl !== undefined
+          ? cleanActionUrl(body.actionUrl, isBanner)
+          : undefined;
       await tx.uploadAsset.update({
         where: { id: current.id },
         data: {
@@ -381,10 +420,12 @@ export async function PATCH(request) {
               }
             : {}),
           ...(Array.isArray(body?.tags) ? { tags: cleanTags(body.tags) } : {}),
+          ...(actionUrl !== undefined ? { actionUrl } : {}),
           ...(updatesAssignments ? { isGlobal: false } : {}),
           ...(typeof body?.isRoomBackground === "boolean"
             ? { isRoomBackground: body.isRoomBackground }
             : {}),
+          ...(isBanner ? { isGlobal: true, isRoomBackground: false } : {}),
         },
       });
       await tx.auditLog.create({
@@ -396,6 +437,7 @@ export async function PATCH(request) {
           description: `${session.user.name ?? "Administrator"} updated ${name ?? current.name}${updatesAssignments ? ` and assigned it to ${users.length} user(s)` : ``}.`,
           metadata: {
             ...(updatesAssignments ? { assignedUserIds: selectedIds } : {}),
+            actionUrl,
             isRoomBackground: body?.isRoomBackground,
           },
         },

@@ -15,6 +15,35 @@ Optional filters:
 - `category=BANNERS|FRAMES|ENTRANCES|TAIL_LIGHTS|GIFTS|BADGES|CHAT_BOXES|ROOM_BACKGROUNDS`
 - `roomBackground=true` returns only assets enabled for use as room backgrounds.
 
+## Marketing banners
+
+Banners are global marketing content and are never assigned to individual
+users or hosts. Request them with:
+
+```http
+GET /api/uploads/catalog?category=BANNERS
+Authorization: Bearer <sessionToken>
+```
+
+Each banner includes an `actionUrl`. Display the media from `url`; when the
+user taps it, open `actionUrl` in the application's in-app browser.
+
+```json
+{
+  "id": "AST-A1B2C3D4E5F6",
+  "name": "Create your agency",
+  "category": "BANNERS",
+  "url": "https://portal.example.com/api/uploads/AST-A1B2C3D4E5F6/file?uid=USR-1048&sv=0&exp=1784883600&sig=...",
+  "actionUrl": "https://portal.example.com/events/agency-drive",
+  "isGlobal": true,
+  "assignedUsers": []
+}
+```
+
+The portal includes `/events/agency-drive` as a responsive sample landing page
+for testing banner-to-in-app-browser navigation. In production, `actionUrl`
+may point to this portal or any valid HTTP/HTTPS campaign page.
+
 Example:
 
 ```http
@@ -37,6 +66,7 @@ Authorization: Bearer <sessionToken>
         "mimeType": "image/webp",
         "fileSize": 248310,
         "url": "https://portal.example.com/api/uploads/AST-A1B2C3D4E5F6/file?uid=USR-1048&sv=0&exp=1784883600&sig=...",
+        "actionUrl": null,
         "isGlobal": false,
         "isRoomBackground": true,
         "assignedUsers": [

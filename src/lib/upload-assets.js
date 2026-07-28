@@ -31,6 +31,7 @@ export function serializeUploadAsset(asset,url) {
     mimeType:asset.mimeType,
     fileSize:asset.fileSize,
     url,
+    actionUrl:asset.actionUrl,
     isGlobal:asset.isGlobal,
     isRoomBackground:asset.isRoomBackground,
     assignedUsers,
