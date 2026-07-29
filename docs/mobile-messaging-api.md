@@ -123,3 +123,6 @@ are visible only inside that user's authenticated portal profile:
 
 The profile includes local word search across message text, notification
 titles, senders, conversation names, record types, and message IDs.
+World Chat history on a profile includes only messages authored by that user.
+Direct messages are grouped into one clean row per conversation; opening the
+row shows both sides in a modal and links the counterpart to their own profile.

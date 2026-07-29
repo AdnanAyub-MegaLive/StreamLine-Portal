@@ -39,7 +39,15 @@ export default async function UserProfilePage({ params }) {
   const [messages, notifications] = await Promise.all([
     prisma.message.findMany({
       where: {
-        conversation: { participants: { some: { userId: user.id } } },
+        OR: [
+          {
+            conversation: {
+              kind: "DIRECT",
+              participants: { some: { userId: user.id } },
+            },
+          },
+          { conversation: { kind: "WORLD" }, senderId: user.id },
+        ],
       },
       select: {
         publicId: true,
@@ -119,45 +127,58 @@ export default async function UserProfilePage({ params }) {
       }),
     ),
   };
-  const messageHistory = [
-    ...messages.map((message) => {
-      const otherUsers = message.conversation.participants
-        .map(({ user: participant }) => participant)
-        .filter((participant) => participant.publicId !== user.publicId);
-      return {
-        type:
-          message.conversation.kind === "WORLD"
-            ? "World Chat"
-            : "Direct Message",
-        conversation:
-          message.conversation.kind === "WORLD"
-            ? message.conversation.name ?? "World Chat"
-            : otherUsers.map((participant) => participant.name).join(", ") ||
-              message.conversation.publicId,
-        sender: message.sender
-          ? `${message.sender.name} (${message.sender.publicId})`
-          : "System",
-        title: null,
-        body: message.body,
-        direction: message.senderId === user.id ? "Sent" : "Received",
-        messageId: message.publicId,
-        createdAt: message.createdAt.toLocaleString("en-US"),
-        timestamp: message.createdAt.getTime(),
-      };
-    }),
-    ...notifications.map((notification) => ({
-      type: "Notification",
-      conversation: notification.userId ? "Personal" : "Global broadcast",
-      sender: "System",
-      title: notification.title,
-      body: notification.body,
-      direction: "Received",
-      messageId: notification.publicId,
-      createdAt: notification.createdAt.toLocaleString("en-US"),
-      timestamp: notification.createdAt.getTime(),
-    })),
-  ]
+  const worldMessages = messages
+    .filter((message) => message.conversation.kind === "WORLD")
+    .map((message) => ({
+      messageId: message.publicId,
+      body: message.body,
+      createdAt: message.createdAt.toLocaleString("en-US"),
+      timestamp: message.createdAt.getTime(),
+    }));
+  const directConversationMap = new Map();
+  for (const message of messages.filter(
+    (record) => record.conversation.kind === "DIRECT",
+  )) {
+    const existing = directConversationMap.get(message.conversation.publicId);
+    const otherUser = message.conversation.participants
+      .map(({ user: participant }) => participant)
+      .find((participant) => participant.publicId !== user.publicId);
+    const conversation = existing ?? {
+      id: message.conversation.publicId,
+      profiledUser: { id: user.publicId, name: user.name },
+      otherUser: otherUser
+        ? { id: otherUser.publicId, name: otherUser.name }
+        : null,
+      messages: [],
+      lastActivity: message.createdAt.toLocaleString("en-US"),
+      timestamp: message.createdAt.getTime(),
+    };
+    conversation.messages.push({
+      id: message.publicId,
+      senderId: message.sender?.publicId ?? null,
+      senderName: message.sender?.name ?? "Deleted user",
+      body: message.body,
+      createdAt: message.createdAt.toLocaleString("en-US"),
+      timestamp: message.createdAt.getTime(),
+    });
+    directConversationMap.set(message.conversation.publicId, conversation);
+  }
+  const directConversations = [...directConversationMap.values()]
+    .map((conversation) => ({
+      ...conversation,
+      messages: conversation.messages.sort(
+        (left, right) => left.timestamp - right.timestamp,
+      ),
+    }))
     .sort((left, right) => right.timestamp - left.timestamp);
+  const notificationHistory = notifications.map((notification) => ({
+    messageId: notification.publicId,
+    title: notification.title,
+    body: notification.body,
+    scope: notification.userId ? "Personal" : "Global broadcast",
+    createdAt: notification.createdAt.toLocaleString("en-US"),
+    timestamp: notification.createdAt.getTime(),
+  }));
   return (
     <main className="min-h-screen bg-[#f4f8f7] text-[#142c2a]">
       <header className="border-b border-[#dfe9e7] bg-white px-6 py-5 md:px-10">
@@ -191,7 +212,12 @@ export default async function UserProfilePage({ params }) {
           </div>
         </div>
         <ProfileManager profile={profile} type="user" />
-        <MessageHistory records={messageHistory} />
+        <MessageHistory
+          profile={{ id: user.publicId, name: user.name }}
+          worldMessages={worldMessages}
+          directConversations={directConversations}
+          notifications={notificationHistory}
+        />
       </div>
     </main>
   );
