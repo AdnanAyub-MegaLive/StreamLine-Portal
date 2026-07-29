@@ -111,11 +111,83 @@ model User {
   audioRooms         AudioRoom[]
   uploadAssignments  UploadAssetAssignment[]
   agencyApplications AgencyApplication[]
+  conversationParticipants ConversationParticipant[]
+  sentMessages       Message[]
+  notifications      Notification[]
+  notificationReads  NotificationRead[]
   totalTopUp         BigInt                  @default(0)
 
   @@index([status])
   @@index([vipLevel])
   @@index([deletedAt])
+}
+
+model Conversation {
+  id            String                    @id @default(cuid())
+  publicId      String                    @unique
+  kind          String                    @default("DIRECT")
+  directKey     String?                   @unique
+  name          String?
+  participants  ConversationParticipant[]
+  messages      Message[]
+  lastMessageAt DateTime?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  @@index([kind, lastMessageAt])
+  @@index([lastMessageAt])
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  joinedAt       DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId, conversationId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  publicId       String       @unique
+  conversationId String
+  senderId       String?
+  body           String
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User?        @relation(fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId, createdAt])
+}
+
+model Notification {
+  id        String             @id @default(cuid())
+  publicId  String             @unique
+  userId    String?
+  title     String
+  body      String
+  createdAt DateTime           @default(now())
+  user      User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reads     NotificationRead[]
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+model NotificationRead {
+  notificationId String
+  userId         String
+  readAt         DateTime     @default(now())
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([notificationId, userId])
+  @@index([userId, readAt])
 }
 
 model UploadAsset {

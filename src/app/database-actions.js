@@ -492,6 +492,7 @@ export async function forceLogoutUser(publicId, reason) {
       isBanned: Boolean(ban),
       banReason: ban?.reason ?? null,
       banExpiresAt: ban?.expiresAt?.toISOString() ?? null,
+      reason: reason || null,
     },
   });
   globalThis.portalDisconnectUser?.(publicId);

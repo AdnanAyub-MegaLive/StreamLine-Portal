@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "../../../../auth";
 import ProfileManager from "../../components/profile-manager";
 import { prisma } from "../../../lib/prisma";
+import MessageHistory from "./message-history";
 
 export default async function UserProfilePage({ params }) {
   const session = await auth();
@@ -35,6 +36,46 @@ export default async function UserProfilePage({ params }) {
     },
   });
   if (!user) notFound();
+  const [messages, notifications] = await Promise.all([
+    prisma.message.findMany({
+      where: {
+        conversation: { participants: { some: { userId: user.id } } },
+      },
+      select: {
+        publicId: true,
+        senderId: true,
+        body: true,
+        createdAt: true,
+        sender: { select: { publicId: true, name: true } },
+        conversation: {
+          select: {
+            publicId: true,
+            kind: true,
+            name: true,
+            participants: {
+              select: {
+                user: { select: { publicId: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 500,
+    }),
+    prisma.notification.findMany({
+      where: { OR: [{ userId: null }, { userId: user.id }] },
+      select: {
+        publicId: true,
+        title: true,
+        body: true,
+        createdAt: true,
+        userId: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+  ]);
   const device = user.devices[0];
   const profile = {
     id: user.publicId,
@@ -78,6 +119,45 @@ export default async function UserProfilePage({ params }) {
       }),
     ),
   };
+  const messageHistory = [
+    ...messages.map((message) => {
+      const otherUsers = message.conversation.participants
+        .map(({ user: participant }) => participant)
+        .filter((participant) => participant.publicId !== user.publicId);
+      return {
+        type:
+          message.conversation.kind === "WORLD"
+            ? "World Chat"
+            : "Direct Message",
+        conversation:
+          message.conversation.kind === "WORLD"
+            ? message.conversation.name ?? "World Chat"
+            : otherUsers.map((participant) => participant.name).join(", ") ||
+              message.conversation.publicId,
+        sender: message.sender
+          ? `${message.sender.name} (${message.sender.publicId})`
+          : "System",
+        title: null,
+        body: message.body,
+        direction: message.senderId === user.id ? "Sent" : "Received",
+        messageId: message.publicId,
+        createdAt: message.createdAt.toLocaleString("en-US"),
+        timestamp: message.createdAt.getTime(),
+      };
+    }),
+    ...notifications.map((notification) => ({
+      type: "Notification",
+      conversation: notification.userId ? "Personal" : "Global broadcast",
+      sender: "System",
+      title: notification.title,
+      body: notification.body,
+      direction: "Received",
+      messageId: notification.publicId,
+      createdAt: notification.createdAt.toLocaleString("en-US"),
+      timestamp: notification.createdAt.getTime(),
+    })),
+  ]
+    .sort((left, right) => right.timestamp - left.timestamp);
   return (
     <main className="min-h-screen bg-[#f4f8f7] text-[#142c2a]">
       <header className="border-b border-[#dfe9e7] bg-white px-6 py-5 md:px-10">
@@ -111,6 +191,7 @@ export default async function UserProfilePage({ params }) {
           </div>
         </div>
         <ProfileManager profile={profile} type="user" />
+        <MessageHistory records={messageHistory} />
       </div>
     </main>
   );

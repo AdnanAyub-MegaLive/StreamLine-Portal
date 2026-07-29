@@ -15,10 +15,25 @@ const handle=app.getRequestHandler();
 app.prepare().then(async()=>{
   const {prisma}=await import("./src/lib/prisma.js");
   const {reconcileExpiredAudioRoomRestrictions}=await import("./src/lib/audio-room-maintenance.js");
+  const {createMessage,ensureWorldConversation,requireConversationParticipant}=await import("./src/lib/messaging.js");
   const httpServer=createServer((request,response)=>handle(request,response));
   const io=new Server(httpServer,{cors:{origin:process.env.MOBILE_APP_ORIGIN||"*",methods:["GET","POST"]}});
   globalThis.portalIo=io;
   globalThis.portalDisconnectUser=(publicId)=>setTimeout(()=>io.in(`user:${publicId}`).disconnectSockets(true),100);
+  globalThis.portalSendNotification=async({userId=null,title,body})=>{
+    const target=userId?await prisma.user.findUnique({where:{publicId:userId},select:{id:true,publicId:true}}):null;
+    if(userId&&!target)throw new Error("USER_NOT_FOUND");
+    const notification=await prisma.notification.create({data:{
+      publicId:`NOT-${randomUUID().replaceAll("-","").slice(0,16).toUpperCase()}`,
+      userId:target?.id??null,
+      title:String(title??"").trim().slice(0,120),
+      body:String(body??"").trim().slice(0,2000),
+    }});
+    const payload={id:notification.publicId,title:notification.title,body:notification.body,createdAt:notification.createdAt.toISOString()};
+    if(target)io.to(`user:${target.publicId}`).emit("notification:new",payload);
+    else io.emit("notification:new",payload);
+    return payload;
+  };
   const scheduleBanExpiry=(publicId,expiresAt)=>{
     if(!expiresAt)return;
     const remaining=new Date(expiresAt).getTime()-Date.now();
@@ -118,8 +133,34 @@ app.prepare().then(async()=>{
     const userId=socket.data.userId;
     socket.join(`user:${userId}`);
     const user=await prisma.user.findUnique({where:{publicId:userId}});
+    await ensureWorldConversation(user.id);
+    const conversationMemberships=await prisma.conversationParticipant.findMany({
+      where:{userId:user.id},
+      select:{conversation:{select:{publicId:true}}},
+    });
+    for(const membership of conversationMemberships)socket.join(`conversation:${membership.conversation.publicId}`);
     const ban=await prisma.ban.findFirst({where:{userId:user.id,target:"USER",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:new Date()}}]},orderBy:{createdAt:"desc"}});
     socket.emit("session:status",{success:true,data:{sessionVersion:user.sessionVersion,forcedLogoutAt:user.forcedLogoutAt?.toISOString()??null,isBanned:Boolean(ban),banReason:ban?.reason??null,banExpiresAt:ban?.expiresAt?.toISOString()??null}});
+    socket.on("message:send",async({conversationId,body}={},ack=()=>{})=>{
+      try{
+        const id=String(conversationId??"");
+        const membership=await requireConversationParticipant(id,user.id);
+        socket.join(`conversation:${id}`);
+        const message=await createMessage(membership.conversation,user,body);
+        const eventPayload={conversationId:id,message};
+        const recipients=await prisma.conversationParticipant.findMany({where:{conversationId:membership.conversationId},select:{user:{select:{publicId:true}}}});
+        let delivery=io.to(`conversation:${id}`);
+        for(const recipient of recipients)delivery=delivery.to(`user:${recipient.user.publicId}`);
+        delivery.emit("message:new",eventPayload);
+        ack({success:true,data:eventPayload});
+      }catch(error){
+        const code=error?.code??error?.message;
+        ack({success:false,error:{
+          code:["CONVERSATION_NOT_FOUND","VALIDATION_ERROR"].includes(code)?code:"MESSAGE_SEND_FAILED",
+          message:error?.validationMessage??(code==="CONVERSATION_NOT_FOUND"?"Conversation not found.":"Unable to send this message."),
+        }});
+      }
+    });
     socket.on("audio-room:join",async({roomId}={},ack=()=>{})=>{
       const requestedRoomId=String(roomId??"");
       await reconcileExpiredAudioRoomRestrictions(requestedRoomId);
