@@ -118,6 +118,12 @@ Signed URLs expire after one hour and are bound to the authenticated user and
 current session version. Refresh the catalogue to receive a new URL when one
 expires. Sending the Bearer token in the file request is still supported.
 
+Public user payloads may also contain short-lived `frameUrl`, `badgeUrl`, and
+`roomBackgroundUrl` display URLs. These use a separate signature restricted to
+the `FRAMES`, `BADGES`, and `ROOM_BACKGROUNDS` categories, allowing another
+authenticated user's app to render public-facing perks without exposing the
+rest of the assignee's upload catalogue.
+
 The hostname in the returned URL is based on the catalogue request. A physical
 device must call the API through the computer's LAN address, not `localhost`.
 Set `MOBILE_API_BASE_URL` when a fixed externally reachable API origin is

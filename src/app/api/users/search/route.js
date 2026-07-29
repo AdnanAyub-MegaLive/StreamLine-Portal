@@ -5,6 +5,11 @@ import {
   mobileOptions,
   requireMobileUser,
 } from "../../../../lib/mobile-api";
+import {
+  publicUserWithPerks,
+  requestOrigin,
+  resolveUserPerks,
+} from "../../../../lib/user-perks";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +35,7 @@ export async function GET(request) {
         ],
       },
       select: {
+        id: true,
         publicId: true,
         name: true,
         profileImage: true,
@@ -37,8 +43,20 @@ export async function GET(request) {
       orderBy: [{ name: "asc" }, { publicId: "asc" }],
       take: 20,
     });
+    const perks = await resolveUserPerks(
+      users,
+      requestOrigin(request),
+      ["FRAMES", "BADGES"],
+    );
 
-    return mobileJson({ success: true, data: { users } });
+    return mobileJson({
+      success: true,
+      data: {
+        users: users.map((result) =>
+          publicUserWithPerks(result, perks.get(result.publicId)),
+        ),
+      },
+    });
   } catch (error) {
     console.error("User search failed", error);
     return mobileApiError(error, "USER_SEARCH_FAILED");

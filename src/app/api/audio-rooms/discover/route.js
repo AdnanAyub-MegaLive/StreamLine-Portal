@@ -1,6 +1,10 @@
 import { prisma } from "../../../../lib/prisma";
 import mobileSession from "../../../../lib/mobile-session.cjs";
 import { reconcileExpiredAudioRoomRestrictions } from "../../../../lib/audio-room-maintenance";
+import {
+  requestOrigin,
+  resolveUserPerks,
+} from "../../../../lib/user-perks";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.MOBILE_APP_ORIGIN || "*",
@@ -69,6 +73,7 @@ export async function GET(request) {
         startedAt: true,
         owner: {
           select: {
+            id: true,
             publicId: true,
             name: true,
             profileImage: true,
@@ -78,6 +83,10 @@ export async function GET(request) {
       orderBy: [{ participantCount: "desc" }, { startedAt: "desc" }],
       take: 50,
     });
+    const perks = await resolveUserPerks(
+      rooms.map((room) => room.owner),
+      requestOrigin(request),
+    );
 
     return json({
       success: true,
@@ -87,10 +96,14 @@ export async function GET(request) {
           title: room.title,
           participantCount: room.participantCount,
           startedAt: room.startedAt,
+          roomBackgroundUrl:
+            perks.get(room.owner.publicId)?.roomBackgroundUrl ?? null,
           owner: {
             id: room.owner.publicId,
             name: room.owner.name,
             profileImage: room.owner.profileImage,
+            frameUrl: perks.get(room.owner.publicId)?.frameUrl ?? null,
+            badgeUrl: perks.get(room.owner.publicId)?.badgeUrl ?? null,
           },
         })),
       },

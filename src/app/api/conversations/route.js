@@ -6,13 +6,17 @@ import {
   requireMobileUser,
 } from "../../../lib/mobile-api";
 import { ensureWorldConversation } from "../../../lib/messaging";
+import {
+  requestOrigin,
+  resolveUserPerks,
+} from "../../../lib/user-perks";
 
 export const dynamic = "force-dynamic";
 export function OPTIONS() {
   return mobileOptions();
 }
 
-async function conversationPayload(conversation, user) {
+async function conversationPayload(conversation, user, perks) {
   const other = conversation.participants.find(
     (participant) => participant.userId !== user.id,
   )?.user;
@@ -42,6 +46,8 @@ async function conversationPayload(conversation, user) {
             id: other.publicId,
             name: other.name,
             profileImage: other.profileImage,
+            frameUrl: perks.get(other.publicId)?.frameUrl ?? null,
+            badgeUrl: perks.get(other.publicId)?.badgeUrl ?? null,
           }
         : null,
     lastMessage: lastMessage
@@ -61,7 +67,7 @@ const conversationInclude = {
   participants: {
     include: {
       user: {
-        select: { publicId: true, name: true, profileImage: true },
+        select: { id: true, publicId: true, name: true, profileImage: true },
       },
     },
   },
@@ -82,12 +88,20 @@ export async function GET(request) {
       orderBy: [{ lastMessageAt: "desc" }, { createdAt: "desc" }],
       take: 200,
     });
+    const participantUsers = conversations.flatMap((conversation) =>
+      conversation.participants.map((participant) => participant.user),
+    );
+    const perks = await resolveUserPerks(
+      participantUsers,
+      requestOrigin(request),
+      ["FRAMES", "BADGES"],
+    );
     return mobileJson({
       success: true,
       data: {
         conversations: await Promise.all(
           conversations.map((conversation) =>
-            conversationPayload(conversation, user),
+            conversationPayload(conversation, user, perks),
           ),
         ),
       },
@@ -128,10 +142,17 @@ export async function POST(request) {
       },
       include: conversationInclude,
     });
+    const perks = await resolveUserPerks(
+      conversation.participants.map((participant) => participant.user),
+      requestOrigin(request),
+      ["FRAMES", "BADGES"],
+    );
     return mobileJson(
       {
         success: true,
-        data: { conversation: await conversationPayload(conversation, user) },
+        data: {
+          conversation: await conversationPayload(conversation, user, perks),
+        },
       },
       201,
     );

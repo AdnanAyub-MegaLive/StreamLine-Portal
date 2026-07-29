@@ -45,6 +45,11 @@ function assetSignature(assetId,userId,sessionVersion,expiresAt) {
   return createHmac("sha256",process.env.AUTH_SECRET).update(`${assetId}:${userId}:${sessionVersion}:${expiresAt}`).digest("base64url");
 }
 
+function publicDisplaySignature(assetId,expiresAt) {
+  if(!process.env.AUTH_SECRET)throw new Error("AUTH_SECRET is required for signed asset URLs.");
+  return createHmac("sha256",process.env.AUTH_SECRET).update(`display:${assetId}:${expiresAt}`).digest("base64url");
+}
+
 export function createSignedAssetUrl(origin,assetId,userId,sessionVersion,ttlSeconds=3600) {
   const expiresAt=Math.floor(Date.now()/1000)+ttlSeconds;
   const signature=assetSignature(assetId,userId,sessionVersion,expiresAt);
@@ -65,5 +70,22 @@ export function verifySignedAssetUrl(assetId,{userId,sessionVersion,expiresAt,si
   const expectedBuffer=Buffer.from(expected);
   if(suppliedBuffer.length!==expectedBuffer.length||!timingSafeEqual(suppliedBuffer,expectedBuffer))return null;
   return {userId,sessionVersion:version,expiresAt:expiry};
+}
+
+export function createPublicDisplayAssetUrl(origin,assetId,ttlSeconds=3600) {
+  const expiresAt=Math.floor(Date.now()/1000)+ttlSeconds;
+  const url=new URL(`/api/uploads/${assetId}/file`,origin);
+  url.searchParams.set("displayExp",String(expiresAt));
+  url.searchParams.set("displaySig",publicDisplaySignature(assetId,expiresAt));
+  return url.toString();
+}
+
+export function verifyPublicDisplayAssetUrl(assetId,{expiresAt,signature}) {
+  const expiry=Number(expiresAt);
+  if(!assetId||!Number.isInteger(expiry)||expiry<=Math.floor(Date.now()/1000)||!signature)return false;
+  const expected=publicDisplaySignature(assetId,expiry);
+  const suppliedBuffer=Buffer.from(signature);
+  const expectedBuffer=Buffer.from(expected);
+  return suppliedBuffer.length===expectedBuffer.length&&timingSafeEqual(suppliedBuffer,expectedBuffer);
 }
 import { createHmac, timingSafeEqual } from "node:crypto";

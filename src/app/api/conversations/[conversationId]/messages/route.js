@@ -10,6 +10,10 @@ import {
   requireConversationParticipant,
   serializeMessage,
 } from "../../../../../lib/messaging";
+import {
+  requestOrigin,
+  resolveUserPerks,
+} from "../../../../../lib/user-perks";
 
 export const dynamic = "force-dynamic";
 export function OPTIONS() {
@@ -34,7 +38,7 @@ export async function GET(request, { params }) {
       where: { conversationId: membership.conversationId },
       include: {
         sender: {
-          select: { publicId: true, name: true, profileImage: true },
+          select: { id: true, publicId: true, name: true, profileImage: true },
         },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -46,10 +50,22 @@ export async function GET(request, { params }) {
     const hasMore = records.length > limit;
     const page = records.slice(0, limit);
     const nextCursor = hasMore ? page[page.length - 1]?.publicId ?? null : null;
+    const perks = await resolveUserPerks(
+      page.map((message) => message.sender).filter(Boolean),
+      requestOrigin(request),
+      ["FRAMES", "BADGES"],
+    );
     return mobileJson({
       success: true,
       data: {
-        messages: page.reverse().map(serializeMessage),
+        messages: page
+          .reverse()
+          .map((message) =>
+            serializeMessage(
+              message,
+              perks.get(message.sender?.publicId),
+            ),
+          ),
         nextCursor,
         hasMore,
       },
@@ -69,10 +85,16 @@ export async function POST(request, { params }) {
       user.id,
     );
     const body = await request.json();
+    const perks = await resolveUserPerks(
+      [user],
+      requestOrigin(request),
+      ["FRAMES", "BADGES"],
+    );
     const message = await createMessage(
       membership.conversation,
       user,
       body?.body,
+      perks.get(user.publicId),
     );
     const recipients = await prisma.conversationParticipant.findMany({
       where: { conversationId: membership.conversationId },

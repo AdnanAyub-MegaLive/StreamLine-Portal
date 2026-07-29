@@ -1,0 +1,131 @@
+import { prisma } from "./prisma.js";
+import { createPublicDisplayAssetUrl } from "./upload-assets.js";
+
+const perkFields = {
+  FRAMES: "frameUrl",
+  BADGES: "badgeUrl",
+  ROOM_BACKGROUNDS: "roomBackgroundUrl",
+};
+
+export function requestOrigin(request) {
+  const url = new URL(request.url);
+  const forwardedHost = request.headers
+    .get("x-forwarded-host")
+    ?.split(",")[0]
+    ?.trim();
+  const host = forwardedHost || request.headers.get("host");
+  const forwardedProtocol = request.headers
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim();
+  const protocol = forwardedProtocol || url.protocol.replace(":", "");
+  return (
+    process.env.MOBILE_API_BASE_URL ||
+    (host ? `${protocol}://${host}` : url.origin)
+  ).replace(/\/$/, "");
+}
+
+export function socketOrigin(socket) {
+  const forwardedHost = String(
+    socket.handshake.headers["x-forwarded-host"] ?? "",
+  )
+    .split(",")[0]
+    .trim();
+  const host = forwardedHost || socket.handshake.headers.host;
+  const forwardedProtocol = String(
+    socket.handshake.headers["x-forwarded-proto"] ?? "",
+  )
+    .split(",")[0]
+    .trim();
+  const protocol = forwardedProtocol || "http";
+  return (
+    process.env.MOBILE_API_BASE_URL ||
+    (host ? `${protocol}://${host}` : `http://127.0.0.1:${process.env.PORT || 3000}`)
+  ).replace(/\/$/, "");
+}
+
+export async function resolveUserPerks(
+  users,
+  origin,
+  categories = ["FRAMES", "BADGES", "ROOM_BACKGROUNDS"],
+) {
+  const uniqueUsers = [
+    ...new Map(
+      users
+        .filter((user) => user?.id && user?.publicId)
+        .map((user) => [user.id, user]),
+    ).values(),
+  ];
+  const result = new Map(
+    uniqueUsers.map((user) => [
+      user.publicId,
+      { frameUrl: null, badgeUrl: null, roomBackgroundUrl: null },
+    ]),
+  );
+  if (!uniqueUsers.length) return result;
+
+  const now = new Date();
+  const userIds = uniqueUsers.map((user) => user.id);
+  const assets = await prisma.uploadAsset.findMany({
+    where: {
+      category: { in: categories },
+      OR: [
+        { isGlobal: true },
+        {
+          assignments: {
+            some: {
+              userId: { in: userIds },
+              OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+          },
+        },
+      ],
+    },
+    select: {
+      publicId: true,
+      category: true,
+      isGlobal: true,
+      createdAt: true,
+      assignments: {
+        where: {
+          userId: { in: userIds },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        select: { userId: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const newestGlobal = new Map();
+  for (const asset of assets)
+    if (asset.isGlobal && !newestGlobal.has(asset.category))
+      newestGlobal.set(asset.category, asset);
+
+  for (const user of uniqueUsers) {
+    const perks = result.get(user.publicId);
+    for (const category of categories) {
+      const assigned = assets.find(
+        (asset) =>
+          asset.category === category &&
+          asset.assignments.some((assignment) => assignment.userId === user.id),
+      );
+      const asset = assigned ?? newestGlobal.get(category);
+      if (asset)
+        perks[perkFields[category]] = createPublicDisplayAssetUrl(
+          origin,
+          asset.publicId,
+        );
+    }
+  }
+  return result;
+}
+
+export function publicUserWithPerks(user, perks) {
+  return {
+    publicId: user.publicId,
+    name: user.name,
+    profileImage: user.profileImage,
+    frameUrl: perks?.frameUrl ?? null,
+    badgeUrl: perks?.badgeUrl ?? null,
+  };
+}

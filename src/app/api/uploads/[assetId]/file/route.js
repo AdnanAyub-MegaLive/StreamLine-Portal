@@ -1,7 +1,16 @@
 import { auth } from "../../../../../../auth";
 import { prisma } from "../../../../../lib/prisma";
 import mobileSession from "../../../../../lib/mobile-session.cjs";
-import { verifySignedAssetUrl } from "../../../../../lib/upload-assets";
+import {
+  verifyPublicDisplayAssetUrl,
+  verifySignedAssetUrl,
+} from "../../../../../lib/upload-assets";
+
+const publicDisplayCategories = new Set([
+  "FRAMES",
+  "BADGES",
+  "ROOM_BACKGROUNDS",
+]);
 
 export async function GET(request, { params }) {
   const { assetId } = await params;
@@ -12,6 +21,7 @@ export async function GET(request, { params }) {
       fileData: true,
       fileName: true,
       mimeType: true,
+      category: true,
       isGlobal: true,
       assignments: {
         where: { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
@@ -32,6 +42,14 @@ export async function GET(request, { params }) {
   if (!session?.user) {
     try {
       const url = new URL(request.url);
+      const publicDisplay =
+        publicDisplayCategories.has(asset.category) &&
+        verifyPublicDisplayAssetUrl(assetId, {
+          expiresAt: url.searchParams.get("displayExp"),
+          signature: url.searchParams.get("displaySig"),
+        });
+      if (publicDisplay)
+        return mediaResponse(asset);
       const signed = verifySignedAssetUrl(assetId, {
         userId: url.searchParams.get("uid"),
         sessionVersion: url.searchParams.get("sv"),
@@ -71,6 +89,10 @@ export async function GET(request, { params }) {
     }
   }
 
+  return mediaResponse(asset);
+}
+
+function mediaResponse(asset) {
   return new Response(asset.fileData, {
     headers: {
       "Content-Type": asset.mimeType,

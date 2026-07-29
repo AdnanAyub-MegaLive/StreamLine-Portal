@@ -1,6 +1,10 @@
 import { prisma } from "../../../lib/prisma";
 import mobileSession from "../../../lib/mobile-session.cjs";
 import { reconcileExpiredAudioRoomRestrictions } from "../../../lib/audio-room-maintenance";
+import {
+  requestOrigin,
+  resolveUserPerks,
+} from "../../../lib/user-perks";
 
 const cors = {
   "Access-Control-Allow-Origin": process.env.MOBILE_APP_ORIGIN || "*",
@@ -38,11 +42,14 @@ export async function GET(request) {
     const room = await prisma.audioRoom.findUnique({
       where: { ownerId: user.id },
     });
+    const perks = (
+      await resolveUserPerks([user], requestOrigin(request))
+    ).get(user.publicId);
     return json({
       success: true,
       data: {
-        room: room ? serializeRoom(room) : null,
-        rooms: room ? [serializeRoom(room)] : [],
+        room: room ? serializeRoom(room, perks) : null,
+        rooms: room ? [serializeRoom(room, perks)] : [],
       },
     });
   } catch {
@@ -62,6 +69,9 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const user = await authenticatedUser(request);
+    const perks = (
+      await resolveUserPerks([user], requestOrigin(request))
+    ).get(user.publicId);
     await reconcileExpiredAudioRoomRestrictions();
     const body = await request.json();
     const action = String(body?.action ?? "START")
@@ -92,7 +102,11 @@ export async function POST(request) {
       );
       return json({
         success: true,
-        data: { room: serializeRoom(room), roomId: room.roomId, reused: true },
+        data: {
+          room: serializeRoom(room, perks),
+          roomId: room.roomId,
+          reused: true,
+        },
       });
     }
 
@@ -181,7 +195,7 @@ export async function POST(request) {
       {
         success: true,
         data: {
-          room: serializeRoom(existing),
+          room: serializeRoom(existing, perks),
           roomId: existing.roomId,
           reused: !created,
         },
@@ -263,13 +277,14 @@ function validUrl(value) {
     return null;
   }
 }
-function serializeRoom(room) {
+function serializeRoom(room, perks) {
   return {
     roomId: room.roomId,
     title: room.title,
     status: room.status,
     liveAudioUrl: room.liveAudioUrl,
     recordingUrl: room.recordingUrl,
+    roomBackgroundUrl: perks?.roomBackgroundUrl ?? null,
     participantCount: room.participantCount,
     joiningDisabled: room.joiningDisabled,
     joiningDisabledUntil: room.joiningDisabledUntil?.toISOString() ?? null,

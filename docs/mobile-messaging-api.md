@@ -17,7 +17,8 @@ GET /api/conversations
 
 Returns direct conversations plus the well-known World Chat conversation.
 Each item includes `lastMessage`, `lastMessageAt`, and a server-computed
-`unreadCount`.
+`unreadCount`. Direct-conversation `participant` objects include
+`frameUrl` and `badgeUrl` alongside `id`, `name`, and `profileImage`.
 
 ```http
 POST /api/conversations
@@ -51,7 +52,7 @@ to every participant as:
 ```js
 socket.on("message:new", (event) => {
   // event.conversationId
-  // event.message: { id, senderId, senderName, senderProfileImage, body, createdAt }
+  // event.message includes senderProfileImage, senderFrameUrl, senderBadgeUrl
 });
 ```
 

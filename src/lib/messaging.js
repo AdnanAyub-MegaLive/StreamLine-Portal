@@ -37,18 +37,25 @@ export async function requireConversationParticipant(publicId, userId) {
   return participant;
 }
 
-export function serializeMessage(message) {
+export function serializeMessage(message, senderPerks) {
   return {
     id: message.publicId,
     senderId: message.sender?.publicId ?? null,
     senderName: message.sender?.name ?? "System",
     senderProfileImage: message.sender?.profileImage ?? null,
+    senderFrameUrl: senderPerks?.frameUrl ?? null,
+    senderBadgeUrl: senderPerks?.badgeUrl ?? null,
     body: message.body,
     createdAt: message.createdAt.toISOString(),
   };
 }
 
-export async function createMessage(conversation, sender, rawBody) {
+export async function createMessage(
+  conversation,
+  sender,
+  rawBody,
+  senderPerks,
+) {
   const body = String(rawBody ?? "").trim();
   if (!body || body.length > 2000) {
     const error = new Error("Message body must contain between 1 and 2000 characters.");
@@ -87,5 +94,5 @@ export async function createMessage(conversation, sender, rawBody) {
     });
     return record;
   });
-  return serializeMessage(message);
+  return serializeMessage(message, senderPerks);
 }

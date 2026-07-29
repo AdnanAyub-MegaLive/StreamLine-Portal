@@ -21,15 +21,19 @@ An empty or whitespace-only query returns a successful empty list.
       {
         "publicId": "USR-2048",
         "name": "Sarah Jenkins",
-        "profileImage": "https://cdn.example.com/profiles/sarah.jpg"
+        "profileImage": "https://cdn.example.com/profiles/sarah.jpg",
+        "frameUrl": "https://portal.example.com/api/uploads/AST-FRAME/file?displayExp=...&displaySig=...",
+        "badgeUrl": null
       }
     ]
   }
 }
 ```
 
-Only `publicId`, `name`, and `profileImage` are exposed. Private account,
+Only `publicId`, `name`, `profileImage`, `frameUrl`, and `badgeUrl` are exposed. Private account,
 contact, financial, session, and onboarding fields are never returned.
+Perks resolve active user-specific assignments first, then the newest global
+asset in that category. Missing perks are returned as `null`.
 
 Example:
 
