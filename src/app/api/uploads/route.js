@@ -14,6 +14,7 @@ const allowedTypes = new Set([
   "video/webm",
 ]);
 const maxFileSize = 15 * 1024 * 1024;
+const distributions = new Set(["MANUAL", "STORE", "VIP", "SVIP", "ACTIVITY"]);
 const assignmentInclude = {
   assignments: {
     include: {
@@ -60,6 +61,79 @@ function cleanActionUrl(value, required = false) {
   }
 }
 
+function optionalWholeNumber(value, field, { min = 0, max } = {}) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  if (
+    !Number.isSafeInteger(number) ||
+    number < min ||
+    (max !== undefined && number > max)
+  ) {
+    const error = new Error(`${field} is invalid.`);
+    error.code = "VALIDATION_ERROR";
+    throw error;
+  }
+  return number;
+}
+
+function distributionFields(input, isBanner) {
+  if (isBanner)
+    return {
+      distribution: "MARKETING",
+      storeVisible: false,
+      coinPrice: null,
+      minimumVipLevel: null,
+      minimumRecharge: null,
+      defaultGrantDurationMinutes: null,
+    };
+  const distribution = String(input.distribution ?? "STORE").toUpperCase();
+  if (!distributions.has(distribution)) {
+    const error = new Error("Asset distribution method is invalid.");
+    error.code = "VALIDATION_ERROR";
+    throw error;
+  }
+  const coinPrice = optionalWholeNumber(input.coinPrice, "Store price");
+  const minimumVipLevel = optionalWholeNumber(
+    input.minimumVipLevel,
+    "Minimum VIP level",
+    { min: 1, max: 5 },
+  );
+  const minimumRecharge = optionalWholeNumber(
+    input.minimumRecharge,
+    "Minimum recharge",
+    { min: 1 },
+  );
+  if (distribution === "STORE" && coinPrice === null) {
+    const error = new Error("A coin price is required for Store items.");
+    error.code = "VALIDATION_ERROR";
+    throw error;
+  }
+  if (distribution === "VIP" && minimumVipLevel === null) {
+    const error = new Error("A VIP level is required for VIP items.");
+    error.code = "VALIDATION_ERROR";
+    throw error;
+  }
+  if (distribution === "SVIP" && minimumRecharge === null) {
+    const error = new Error("A recharge requirement is required for SVIP items.");
+    error.code = "VALIDATION_ERROR";
+    throw error;
+  }
+  return {
+    distribution,
+    storeVisible:
+      input.storeVisible === true || input.storeVisible === "true",
+    coinPrice: distribution === "STORE" ? BigInt(coinPrice) : null,
+    minimumVipLevel: distribution === "VIP" ? minimumVipLevel : null,
+    minimumRecharge:
+      distribution === "SVIP" ? BigInt(minimumRecharge) : null,
+    defaultGrantDurationMinutes: optionalWholeNumber(
+      input.defaultGrantDurationMinutes,
+      "Default ownership duration",
+      { min: 1, max: 5256000 },
+    ),
+  };
+}
+
 async function resolveUsers(client, ids) {
   if (!ids.length) return [];
   const users = await client.user.findMany({
@@ -74,12 +148,26 @@ async function resolveUsers(client, ids) {
   return users;
 }
 
-function parseGrants(value, fallbackIds = [], fallbackMinutes = 10080) {
+async function isSuperAdmin(session) {
+  const admin = await prisma.admin.findUnique({
+    where: { email: session.user.email },
+    select: { role: true, active: true },
+  });
+  return Boolean(admin?.active && admin.role === "SUPER_ADMIN");
+}
+
+function parseGrants(
+  value,
+  fallbackIds = [],
+  fallbackMinutes = 10080,
+  fallbackPermanent = false,
+) {
   const values = Array.isArray(value)
     ? value
     : fallbackIds.map((userId) => ({
         userId,
         durationMinutes: fallbackMinutes,
+        permanent: fallbackPermanent,
       }));
   const unique = new Map();
   for (const item of values) {
@@ -87,7 +175,13 @@ function parseGrants(value, fallbackIds = [], fallbackMinutes = 10080) {
     const durationMinutes = Number(item?.durationMinutes);
     const suppliedExpiry = item?.expiresAt ? new Date(item.expiresAt) : null;
     if (!userId) continue;
-    if (suppliedExpiry && !Number.isNaN(suppliedExpiry.getTime()))
+    if (item?.permanent === true)
+      unique.set(userId, {
+        userId,
+        durationMinutes: null,
+        expiresAt: null,
+      });
+    else if (suppliedExpiry && !Number.isNaN(suppliedExpiry.getTime()))
       unique.set(userId, {
         userId,
         durationMinutes:
@@ -138,6 +232,18 @@ export async function POST(request) {
     }
     const category = String(form.get("category") ?? "");
     const isBanner = category === "BANNERS";
+    const distribution = distributionFields(
+      {
+        distribution: form.get("distribution"),
+        storeVisible: form.get("storeVisible"),
+        coinPrice: form.get("coinPrice"),
+        minimumVipLevel: form.get("minimumVipLevel"),
+        minimumRecharge: form.get("minimumRecharge"),
+        defaultGrantDurationMinutes:
+          form.get("defaultGrantDurationMinutes") || null,
+      },
+      isBanner,
+    );
     const actionUrl = cleanActionUrl(form.get("actionUrl"), isBanner);
     let selectedIds = [];
     try {
@@ -157,10 +263,27 @@ export async function POST(request) {
       );
     }
     if (isBanner) selectedIds = [];
+    if (selectedIds.length && !(await isSuperAdmin(session)))
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: "SUPER_ADMIN_REQUIRED",
+            message: "Only a Super Admin can grant assets manually.",
+          },
+        },
+        { status: 403 },
+      );
     const assignmentMinutes = Number(
       form.get("assignmentDurationMinutes") ?? 10080,
     );
-    const grants = parseGrants(null, selectedIds, assignmentMinutes);
+    const assignmentPermanent = form.get("assignmentPermanent") === "true";
+    const grants = parseGrants(
+      null,
+      selectedIds,
+      assignmentMinutes,
+      assignmentPermanent,
+    );
     if (selectedIds.length && grants.length !== selectedIds.length)
       return Response.json(
         {
@@ -249,8 +372,9 @@ export async function POST(request) {
           fileSize: file.size,
           fileData: bytes,
           actionUrl,
-          isGlobal: isBanner || users.length === 0,
+          isGlobal: isBanner,
           isRoomBackground,
+          ...distribution,
         },
       });
       if (users.length)
@@ -262,6 +386,7 @@ export async function POST(request) {
               userId: user.id,
               durationMinutes: grant.durationMinutes,
               expiresAt: grant.expiresAt,
+              source: "ADMIN",
             };
           }),
         });
@@ -277,6 +402,13 @@ export async function POST(request) {
             mimeType: file.type,
             fileSize: file.size,
             assignedUserIds: selectedIds,
+            assignmentPermanent,
+            distribution: distribution.distribution,
+            storeVisible: distribution.storeVisible,
+            coinPrice: distribution.coinPrice?.toString() ?? null,
+            minimumVipLevel: distribution.minimumVipLevel,
+            minimumRecharge:
+              distribution.minimumRecharge?.toString() ?? null,
             actionUrl,
             isRoomBackground,
           },
@@ -300,6 +432,11 @@ export async function POST(request) {
       { status: 201 },
     );
   } catch (error) {
+    if (error?.code === "VALIDATION_ERROR")
+      return Response.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: 422 },
+      );
     if (error?.code === "USER_NOT_FOUND")
       return Response.json(
         { success: false, error: { code: error.code, message: error.message } },
@@ -348,6 +485,17 @@ export async function PATCH(request) {
     const selectedIds = updatesAssignments
       ? grants.map((grant) => grant.userId)
       : [];
+    if (updatesAssignments && !(await isSuperAdmin(session)))
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: "SUPER_ADMIN_REQUIRED",
+            message: "Only a Super Admin can change manual grants.",
+          },
+        },
+        { status: 403 },
+      );
     if (
       updatesAssignments &&
       Array.isArray(body?.assignedUserIds) &&
@@ -372,6 +520,16 @@ export async function PATCH(request) {
         select: { id: true, name: true, category: true },
       });
       const isBanner = current.category === "BANNERS";
+      const changesDistribution =
+        body?.distribution !== undefined ||
+        body?.storeVisible !== undefined ||
+        body?.coinPrice !== undefined ||
+        body?.minimumVipLevel !== undefined ||
+        body?.minimumRecharge !== undefined ||
+        body?.defaultGrantDurationMinutes !== undefined;
+      const distribution = changesDistribution
+        ? distributionFields(body, isBanner)
+        : null;
       if (isBanner && updatesAssignments) {
         const error = new Error("Banners cannot be assigned to users.");
         error.code = "VALIDATION_ERROR";
@@ -392,6 +550,7 @@ export async function PATCH(request) {
                 userId: user.id,
                 durationMinutes: grant.durationMinutes,
                 expiresAt: grant.expiresAt,
+                source: "ADMIN",
               };
             }),
           });
@@ -426,6 +585,7 @@ export async function PATCH(request) {
             ? { isRoomBackground: body.isRoomBackground }
             : {}),
           ...(isBanner ? { isGlobal: true, isRoomBackground: false } : {}),
+          ...(distribution ?? {}),
         },
       });
       await tx.auditLog.create({
@@ -439,6 +599,16 @@ export async function PATCH(request) {
             ...(updatesAssignments ? { assignedUserIds: selectedIds } : {}),
             actionUrl,
             isRoomBackground: body?.isRoomBackground,
+            ...(distribution
+              ? {
+                  distribution: distribution.distribution,
+                  storeVisible: distribution.storeVisible,
+                  coinPrice: distribution.coinPrice?.toString() ?? null,
+                  minimumVipLevel: distribution.minimumVipLevel,
+                  minimumRecharge:
+                    distribution.minimumRecharge?.toString() ?? null,
+                }
+              : {}),
           },
         },
       });

@@ -221,6 +221,11 @@ function PreviewCard({ item, onManage, onDelete }) {
               Room background
             </span>
           )}
+          {item.category !== "BANNERS" && (
+            <span className="rounded-full bg-sky-50 px-2 py-1 text-[9px] font-bold text-sky-700">
+              {distributionLabel(item)}
+            </span>
+          )}
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-[#edf2f1] pt-3 text-[9px] text-[#71847f]">
           <span>
@@ -304,6 +309,20 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
   const [details, setDetails] = useState(asset.details ?? "");
   const [tags, setTags] = useState((asset.tags ?? []).join(", "));
   const [actionUrl, setActionUrl] = useState(asset.actionUrl ?? "");
+  const [distribution, setDistribution] = useState(
+    asset.distribution === "MARKETING" ? "MANUAL" : asset.distribution ?? "MANUAL",
+  );
+  const [storeVisible, setStoreVisible] = useState(asset.storeVisible ?? false);
+  const [coinPrice, setCoinPrice] = useState(asset.coinPrice ?? "0");
+  const [minimumVipLevel, setMinimumVipLevel] = useState(
+    asset.minimumVipLevel ?? 1,
+  );
+  const [minimumRecharge, setMinimumRecharge] = useState(
+    asset.minimumRecharge ?? "1",
+  );
+  const [defaultGrantDuration, setDefaultGrantDuration] = useState(
+    asset.defaultGrantDurationMinutes ?? null,
+  );
   const [grants, setGrants] = useState(
     asset.assignedUsers
       .filter((user) => !user.isExpired)
@@ -311,6 +330,7 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
         userId: user.id,
         durationMinutes: user.durationMinutes,
         expiresAt: user.expiresAt,
+        permanent: !user.expiresAt,
       })),
   );
   const [grantedQuery, setGrantedQuery] = useState("");
@@ -338,7 +358,16 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
       tags: parseTags(tags),
       ...(isBanner
         ? { actionUrl: actionUrl.trim() }
-        : { assignmentGrants: grants, isRoomBackground }),
+        : {
+            assignmentGrants: grants,
+            isRoomBackground,
+            distribution,
+            storeVisible,
+            coinPrice,
+            minimumVipLevel,
+            minimumRecharge,
+            defaultGrantDurationMinutes: defaultGrantDuration,
+          }),
     });
   }
 
@@ -427,6 +456,22 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
               </Field>
             )}
           </div>
+          {!isBanner && (
+            <DistributionSettings
+              distribution={distribution}
+              onDistribution={setDistribution}
+              storeVisible={storeVisible}
+              onStoreVisible={setStoreVisible}
+              coinPrice={coinPrice}
+              onCoinPrice={setCoinPrice}
+              minimumVipLevel={minimumVipLevel}
+              onMinimumVipLevel={setMinimumVipLevel}
+              minimumRecharge={minimumRecharge}
+              onMinimumRecharge={setMinimumRecharge}
+              defaultDuration={defaultGrantDuration}
+              onDefaultDuration={setDefaultGrantDuration}
+            />
+          )}
           {!isBanner && <UserPanel
             title="Granted to Users"
             query={grantedQuery}
@@ -446,7 +491,11 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
                 <UserRow
                   key={user.id}
                   user={user}
-                  meta={`Expires ${formatDate(grant?.expiresAt)}`}
+                  meta={
+                    grant?.permanent || !grant?.expiresAt
+                      ? "Granted permanently"
+                      : `Expires ${formatDate(grant.expiresAt)}`
+                  }
                   action="Remove"
                   tone="remove"
                   onAction={() =>
@@ -480,9 +529,13 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
                     {
                       userId: user.id,
                       durationMinutes,
-                      expiresAt: new Date(
-                        Date.now() + durationMinutes * 60000,
-                      ).toISOString(),
+                      expiresAt:
+                        durationMinutes === null
+                          ? null
+                          : new Date(
+                              Date.now() + durationMinutes * 60000,
+                            ).toISOString(),
+                      permanent: durationMinutes === null,
                     },
                   ])
                 }
@@ -590,6 +643,12 @@ function UploadModal({ active, users, onClose, onCreated }) {
   const [details, setDetails] = useState("");
   const [tags, setTags] = useState("");
   const [actionUrl, setActionUrl] = useState("");
+  const [distribution, setDistribution] = useState("STORE");
+  const [storeVisible, setStoreVisible] = useState(true);
+  const [coinPrice, setCoinPrice] = useState("0");
+  const [minimumVipLevel, setMinimumVipLevel] = useState(1);
+  const [minimumRecharge, setMinimumRecharge] = useState("1");
+  const [defaultGrantDuration, setDefaultGrantDuration] = useState(null);
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [assignedUserIds, setAssignedUserIds] = useState([]);
@@ -636,8 +695,21 @@ function UploadModal({ active, users, onClose, onCreated }) {
     form.set("actionUrl", actionUrl.trim());
     if (!isBanner) {
       form.set("assignedUserIds", JSON.stringify(assignedUserIds));
-      form.set("assignmentDurationMinutes", String(durationMinutes));
+      form.set(
+        "assignmentDurationMinutes",
+        durationMinutes === null ? "" : String(durationMinutes),
+      );
+      form.set("assignmentPermanent", String(durationMinutes === null));
       form.set("isRoomBackground", String(isRoomBackground));
+      form.set("distribution", distribution);
+      form.set("storeVisible", String(storeVisible));
+      form.set("coinPrice", String(coinPrice));
+      form.set("minimumVipLevel", String(minimumVipLevel));
+      form.set("minimumRecharge", String(minimumRecharge));
+      form.set(
+        "defaultGrantDurationMinutes",
+        defaultGrantDuration === null ? "" : String(defaultGrantDuration),
+      );
     }
     try {
       const response = await fetch("/api/uploads", {
@@ -760,6 +832,22 @@ function UploadModal({ active, users, onClose, onCreated }) {
               </p>
             </div>
           )}
+          {!isBanner && (
+            <DistributionSettings
+              distribution={distribution}
+              onDistribution={setDistribution}
+              storeVisible={storeVisible}
+              onStoreVisible={setStoreVisible}
+              coinPrice={coinPrice}
+              onCoinPrice={setCoinPrice}
+              minimumVipLevel={minimumVipLevel}
+              onMinimumVipLevel={setMinimumVipLevel}
+              minimumRecharge={minimumRecharge}
+              onMinimumRecharge={setMinimumRecharge}
+              defaultDuration={defaultGrantDuration}
+              onDefaultDuration={setDefaultGrantDuration}
+            />
+          )}
           {!isBanner && <AssignmentPeriod
             value={durationMinutes}
             onChange={setDurationMinutes}
@@ -860,14 +948,18 @@ function AssignmentPeriod({ value, onChange }) {
     ["21600", "15 days"],
     ["43200", "30 days"],
   ];
-  const preset = presets.some(([minutes]) => Number(minutes) === Number(value))
-    ? String(value)
-    : "custom";
+  const preset =
+    value === null
+      ? "permanent"
+      : presets.some(([minutes]) => Number(minutes) === Number(value))
+        ? String(value)
+        : "custom";
   const [selection, setSelection] = useState(preset);
   function select(event) {
     const next = event.target.value;
     setSelection(next);
-    if (next !== "custom") onChange(Number(next));
+    if (next === "permanent") onChange(null);
+    else if (next !== "custom") onChange(Number(next));
   }
   return (
     <div className="rounded-xl border border-[#d7e5e2] bg-[#f8fbfa] p-4">
@@ -875,6 +967,7 @@ function AssignmentPeriod({ value, onChange }) {
         Assignment time period
       </label>
       <select value={selection} onChange={select} className={inputClass}>
+        <option value="permanent">Permanent — no expiration</option>
         {presets.map(([minutes, label]) => (
           <option key={minutes} value={minutes}>
             {label}
@@ -896,13 +989,120 @@ function AssignmentPeriod({ value, onChange }) {
         />
       )}
       <p className="mt-2 rounded-lg bg-[#e8f5f2] px-3 py-2 text-[11px] font-semibold text-[#176f67]">
-        {durationCalculation(value)}
+        {selection === "permanent"
+          ? "Permanent access — this grant does not expire."
+          : durationCalculation(value)}
       </p>
       <p className="mt-1.5 text-[9px] text-[#748681]">
         This period is applied when you click Grant. Existing grants keep their
         original expiry.
       </p>
     </div>
+  );
+}
+
+function DistributionSettings({
+  distribution,
+  onDistribution,
+  storeVisible,
+  onStoreVisible,
+  coinPrice,
+  onCoinPrice,
+  minimumVipLevel,
+  onMinimumVipLevel,
+  minimumRecharge,
+  onMinimumRecharge,
+  defaultDuration,
+  onDefaultDuration,
+}) {
+  return (
+    <fieldset className="rounded-xl border border-[#c9ddd8] bg-[#f7fbfa] p-4">
+      <legend className="px-2 text-xs font-bold text-[#294a45]">
+        Store and ownership rules
+      </legend>
+      <label className="block">
+        <span className="mb-2 block text-xs font-bold">How users obtain it</span>
+        <select
+          value={distribution}
+          onChange={(event) => onDistribution(event.target.value)}
+          className={inputClass}
+        >
+          <option value="STORE">Buy from Store</option>
+          <option value="VIP">VIP level reward</option>
+          <option value="SVIP">SVIP / recharge reward</option>
+          <option value="ACTIVITY">Activity or event only</option>
+          <option value="MANUAL">Super Admin grant only</option>
+        </select>
+      </label>
+      <div className="mt-3">
+        {distribution === "STORE" && (
+          <Field label="Store price in coins">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              required
+              value={coinPrice}
+              onChange={(event) => onCoinPrice(event.target.value)}
+              className={inputClass}
+            />
+          </Field>
+        )}
+        {distribution === "VIP" && (
+          <Field label="Minimum VIP level">
+            <select
+              value={minimumVipLevel}
+              onChange={(event) =>
+                onMinimumVipLevel(Number(event.target.value))
+              }
+              className={inputClass}
+            >
+              {[1, 2, 3, 4, 5].map((level) => (
+                <option key={level} value={level}>
+                  VIP {level}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {distribution === "SVIP" && (
+          <Field label="Minimum total recharge">
+            <input
+              type="number"
+              min="1"
+              step="1"
+              required
+              value={minimumRecharge}
+              onChange={(event) => onMinimumRecharge(event.target.value)}
+              className={inputClass}
+            />
+          </Field>
+        )}
+      </div>
+      <label className="mt-4 flex items-start gap-3 rounded-lg border border-[#dbe8e5] bg-white p-3">
+        <input
+          type="checkbox"
+          checked={storeVisible}
+          onChange={(event) => onStoreVisible(event.target.checked)}
+          className="mt-0.5 h-4 w-4 accent-[#087f74]"
+        />
+        <span>
+          <strong className="block text-xs">Show in Store catalog</strong>
+          <span className="mt-0.5 block text-[9px] text-[#748681]">
+            VIP, SVIP, and activity items appear locked until earned.
+          </span>
+        </span>
+      </label>
+      <div className="mt-4">
+        <AssignmentPeriod
+          value={defaultDuration}
+          onChange={onDefaultDuration}
+        />
+        <p className="mt-1 text-[9px] text-[#748681]">
+          This is the ownership duration after purchase or automatic unlock.
+        </p>
+      </div>
+    </fieldset>
   );
 }
 function EmptyState({ active }) {
@@ -989,6 +1189,16 @@ function formatSize(bytes) {
 }
 function formatDate(value) {
   return value ? new Date(value).toLocaleString("en-US") : "Never";
+}
+function distributionLabel(item) {
+  if (item.distribution === "STORE")
+    return `Store · ${item.coinPrice ?? "0"} coins`;
+  if (item.distribution === "VIP")
+    return `VIP ${item.minimumVipLevel ?? ""}`.trim();
+  if (item.distribution === "SVIP")
+    return `SVIP · recharge ${item.minimumRecharge ?? ""}`.trim();
+  if (item.distribution === "ACTIVITY") return "Activity reward";
+  return "Super Admin grant";
 }
 const inputClass =
   "h-11 w-full rounded-lg border border-[#cededb] bg-white px-4 text-sm outline-none transition placeholder:text-[#9aaba7] focus:border-[#2ca89c] focus:ring-2 focus:ring-[#2ca89c]/10";

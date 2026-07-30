@@ -121,6 +121,8 @@ model User {
   gameLogs           GameLog[]
   audioRooms         AudioRoom[]
   uploadAssignments  UploadAssetAssignment[]
+  equippedProps      UserEquippedProp[]
+  propPurchases      PropPurchase[]
   agencyApplications AgencyApplication[]
   conversationParticipants ConversationParticipant[]
   sentMessages       Message[]
@@ -352,12 +354,23 @@ model UploadAsset {
   actionUrl        String?
   isGlobal         Boolean                 @default(true)
   isRoomBackground Boolean                 @default(false)
+  distribution     String                  @default("MANUAL")
+  storeVisible     Boolean                 @default(false)
+  coinPrice        BigInt?
+  minimumVipLevel  Int?
+  minimumRecharge  BigInt?
+  defaultGrantDurationMinutes Int?
+  active           Boolean                 @default(true)
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
   assignments      UploadAssetAssignment[]
+  equippedBy       UserEquippedProp[]
+  purchases        PropPurchase[]
 
   @@index([category, createdAt])
   @@index([isRoomBackground, createdAt])
+  @@index([storeVisible, active, createdAt])
+  @@index([distribution, active])
 }
 
 model UploadAssetAssignment {
@@ -366,12 +379,44 @@ model UploadAssetAssignment {
   durationMinutes Int?
   assignedAt      DateTime    @default(now())
   expiresAt       DateTime?
+  source          String      @default("ADMIN")
+  sourceReference String?
+  purchasePrice   BigInt?
   asset           UploadAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
   user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([assetId, userId])
   @@index([userId, assignedAt])
   @@index([expiresAt])
+  @@index([source, assignedAt])
+}
+
+model UserEquippedProp {
+  userId    String
+  category  String
+  assetId   String
+  equippedAt DateTime @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset     UploadAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([userId, category])
+  @@index([assetId])
+}
+
+model PropPurchase {
+  id          String      @id @default(cuid())
+  publicId    String      @unique
+  userId      String
+  assetId     String?
+  assetPublicId String
+  assetName   String
+  price       BigInt
+  purchasedAt DateTime    @default(now())
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset       UploadAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([userId, purchasedAt])
+  @@index([assetId, purchasedAt])
 }
 
 model AgencyApplication {

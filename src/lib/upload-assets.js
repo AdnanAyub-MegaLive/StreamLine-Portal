@@ -20,6 +20,9 @@ export function serializeUploadAsset(asset,url) {
     durationMinutes:assignment.durationMinutes,
     expiresAt:assignment.expiresAt?.toISOString()??null,
     isExpired:Boolean(assignment.expiresAt&&assignment.expiresAt<=new Date()),
+    source:assignment.source??"ADMIN",
+    sourceReference:assignment.sourceReference??null,
+    purchasePrice:assignment.purchasePrice?.toString()??null,
   }));
   return {
     id:asset.publicId,
@@ -34,6 +37,13 @@ export function serializeUploadAsset(asset,url) {
     actionUrl:asset.actionUrl,
     isGlobal:asset.isGlobal,
     isRoomBackground:asset.isRoomBackground,
+    distribution:asset.distribution??"MANUAL",
+    storeVisible:Boolean(asset.storeVisible),
+    coinPrice:asset.coinPrice?.toString()??null,
+    minimumVipLevel:asset.minimumVipLevel??null,
+    minimumRecharge:asset.minimumRecharge?.toString()??null,
+    defaultGrantDurationMinutes:asset.defaultGrantDurationMinutes??null,
+    active:asset.active??true,
     assignedUsers,
     assignedUser:assignedUsers[0]??null,
     createdAt:asset.createdAt.toISOString(),

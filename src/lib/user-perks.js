@@ -82,6 +82,7 @@ export async function resolveUserPerks(
       ],
     },
     select: {
+      id: true,
       publicId: true,
       category: true,
       isGlobal: true,
@@ -101,15 +102,30 @@ export async function resolveUserPerks(
     if (asset.isGlobal && !newestGlobal.has(asset.category))
       newestGlobal.set(asset.category, asset);
 
+  const equipped = await prisma.userEquippedProp.findMany({
+    where: {
+      userId: { in: userIds },
+      category: { in: categories },
+      asset: { active: true },
+    },
+    select: { userId: true, category: true, assetId: true },
+  });
   for (const user of uniqueUsers) {
     const perks = result.get(user.publicId);
     for (const category of categories) {
-      const assigned = assets.find(
-        (asset) =>
-          asset.category === category &&
-          asset.assignments.some((assignment) => assignment.userId === user.id),
+      const selected = equipped.find(
+        (item) => item.userId === user.id && item.category === category,
       );
-      const asset = assigned ?? newestGlobal.get(category);
+      const selectedAsset = selected
+        ? assets.find(
+            (asset) =>
+              asset.id === selected.assetId &&
+              asset.assignments.some(
+                (assignment) => assignment.userId === user.id,
+              ),
+          )
+        : null;
+      const asset = selectedAsset ?? newestGlobal.get(category);
       if (asset)
         perks[perkFields[category]] = createPublicDisplayAssetUrl(
           origin,

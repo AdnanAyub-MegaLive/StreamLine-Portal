@@ -55,6 +55,12 @@ export function mobileApiError(error, fallbackCode = "REQUEST_FAILED") {
     REQUEST_ALREADY_PENDING: [409, "REQUEST_ALREADY_PENDING", "A friend request is already pending."],
     FRIEND_REQUEST_RESOLVED: [409, "FRIEND_REQUEST_RESOLVED", "This friend request has already been resolved."],
     SELF_FRIEND_REQUEST: [422, "SELF_FRIEND_REQUEST", "You cannot send a friend request to yourself."],
+    STORE_ITEM_NOT_FOUND: [404, "STORE_ITEM_NOT_FOUND", "This item is not available for purchase."],
+    PROP_ALREADY_OWNED: [409, "PROP_ALREADY_OWNED", "You already own this item."],
+    INSUFFICIENT_COINS: [409, "INSUFFICIENT_COINS", "Your coin balance is too low for this purchase."],
+    PROP_NOT_OWNED: [403, "PROP_NOT_OWNED", "You do not own this item or its ownership has expired."],
+    PROP_NOT_FOUND: [404, "PROP_NOT_FOUND", "The selected prop was not found."],
+    PROP_NOT_EQUIPPABLE: [422, "PROP_NOT_EQUIPPABLE", "This item cannot be applied to a profile."],
     SELF_CONVERSATION: [422, "SELF_CONVERSATION", "You cannot start a direct conversation with yourself."],
     VALIDATION_ERROR: [
       422,

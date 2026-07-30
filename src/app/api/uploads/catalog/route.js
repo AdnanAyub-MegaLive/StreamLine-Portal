@@ -5,6 +5,7 @@ import {
   serializeUploadAsset,
   validUploadCategories,
 } from "../../../../lib/upload-assets";
+import { syncProgressionProps } from "../../../../lib/props-store";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.MOBILE_APP_ORIGIN || "*",
@@ -33,6 +34,7 @@ export async function GET(request) {
       user.sessionVersion !== payload.sessionVersion
     )
       throw new Error("INVALID_SESSION");
+    await syncProgressionProps(user.id);
     const url = new URL(request.url);
     const category = url.searchParams
       .get("category")

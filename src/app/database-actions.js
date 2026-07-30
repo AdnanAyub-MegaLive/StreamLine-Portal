@@ -12,6 +12,7 @@ import {
   reconcileExpiredSpecialIds,
 } from "../lib/special-id";
 import { reconcileExpiredAudioRoomRestrictions } from "../lib/audio-room-maintenance";
+import { syncProgressionProps } from "../lib/props-store";
 
 async function requireAdmin() {
   const session = await auth();
@@ -107,6 +108,11 @@ export async function updateUserAccount(publicId, changes) {
     metadata: { ...changes, reason: changes.auditReason || null },
   });
   if (changes.vipLevel !== undefined) {
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { publicId },
+      select: { id: true },
+    });
+    await syncProgressionProps(user.id);
     const assignment = await autoAssignEligibleSpecialId(publicId, "VIP");
     if (assignment)
       emitToUser(publicId, "special-id:assigned", {
@@ -231,6 +237,7 @@ export async function adjustUserCoins(publicId, operation, amount, reason) {
     metadata: { amount, operation, reason, balanceAfter: Number(after) },
   });
   if (operation === "add") {
+    await syncProgressionProps(user.id);
     const assignment = await autoAssignEligibleSpecialId(publicId, "TOP_UP");
     if (assignment)
       emitToUser(publicId, "special-id:assigned", {
