@@ -44,6 +44,17 @@ enum BanTarget {
   DEVICE
 }
 
+enum EventUserRole {
+  SUPER_ADMIN
+  JUNIOR_ADMIN
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 model Admin {
   id                         String               @id @default(cuid())
   name                       String
@@ -115,11 +126,30 @@ model User {
   sentMessages       Message[]
   notifications      Notification[]
   notificationReads  NotificationRead[]
+  friendRequestsSent FriendRequest[]          @relation("FriendRequestsSent")
+  friendRequestsReceived FriendRequest[]      @relation("FriendRequestsReceived")
   totalTopUp         BigInt                  @default(0)
 
   @@index([status])
   @@index([vipLevel])
   @@index([deletedAt])
+}
+
+model FriendRequest {
+  id          String   @id @default(cuid())
+  publicId    String   @unique
+  pairKey     String   @unique
+  requesterId String
+  requester   User     @relation("FriendRequestsSent", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String
+  addressee   User     @relation("FriendRequestsReceived", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  respondedAt DateTime?
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status, createdAt])
+  @@index([requesterId, status, createdAt])
 }
 
 model Conversation {
@@ -188,6 +218,124 @@ model NotificationRead {
 
   @@id([notificationId, userId])
   @@index([userId, readAt])
+}
+
+model EventUser {
+  id            String              @id @default(cuid())
+  name          String
+  email         String              @unique
+  passwordHash  String
+  role          EventUserRole       @default(JUNIOR_ADMIN)
+  active        Boolean             @default(true)
+  tokenVersion  Int                 @default(0)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  eventsCreated Event[]             @relation("EventCreator")
+  versions      EventVersion[]      @relation("EventVersionUploader")
+  refreshTokens EventRefreshToken[]
+  uploadLogs    UploadLog[]
+  publishLogs   PublishLog[]
+  auditLogs     EventAuditLog[]
+
+  @@index([role, active])
+}
+
+model Event {
+  id             String         @id @default(cuid())
+  publicId       String         @unique
+  name           String
+  slug           String         @unique
+  folderName     String
+  entryFile      String         @default("index.html")
+  version        Int            @default(1)
+  latestVersion  Int            @default(1)
+  status         EventStatus    @default(DRAFT)
+  createdById    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  publishedAt    DateTime?
+  createdBy      EventUser?     @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  versions       EventVersion[]
+  uploadLogs     UploadLog[]
+  publishLogs    PublishLog[]
+  auditLogs      EventAuditLog[]
+
+  @@index([status, updatedAt])
+  @@index([createdById, createdAt])
+}
+
+model EventVersion {
+  id           String     @id @default(cuid())
+  eventId      String
+  version      Int
+  folderName   String
+  entryFile    String     @default("index.html")
+  fileCount    Int
+  sizeBytes    BigInt
+  checksum     String
+  createdById  String?
+  createdAt    DateTime   @default(now())
+  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy    EventUser? @relation("EventVersionUploader", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, version])
+  @@index([eventId, createdAt])
+}
+
+model EventRefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  user       EventUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model UploadLog {
+  id        String     @id @default(cuid())
+  userId    String?
+  eventId   String?
+  action    String
+  ip        String?
+  metadata  Json?
+  createdAt DateTime   @default(now())
+  user      EventUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event     Event?     @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model PublishLog {
+  id        String     @id @default(cuid())
+  userId    String?
+  eventId   String?
+  action    String
+  createdAt DateTime   @default(now())
+  user      EventUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event     Event?     @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model EventAuditLog {
+  id        String     @id @default(cuid())
+  userId    String?
+  eventId   String?
+  action    String
+  ip        String?
+  metadata  Json?
+  createdAt DateTime   @default(now())
+  user      EventUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event     Event?     @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([eventId, createdAt])
 }
 
 model UploadAsset {

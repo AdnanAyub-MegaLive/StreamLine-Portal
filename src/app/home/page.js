@@ -11,6 +11,7 @@ const navItems = [
   { label: "Agency Management", href: "/agencies" },
   { label: "Uploads", href: "/uploads" },
   { label: "Audit Logs", href: "/audit-logs" },
+  { label: "Events Management", href: "/events-login" },
   { label: "Audio rooms", href: "#" },
   { label: "Reports", href: "#" },
 ];
@@ -212,6 +213,12 @@ export default async function DashboardHome() {
                   title="Agency Management"
                   detail="Rankings, targets, applications and salaries"
                   color="bg-[#eee9ff] text-[#6953b5]"
+                />
+                <ManagementLink
+                  href="/events-login"
+                  title="Events Management"
+                  detail="Host, version and publish in-app web events"
+                  color="bg-[#e2f7ef] text-[#087f74]"
                 />
               </div>
             </section>

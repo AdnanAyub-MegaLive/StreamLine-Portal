@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Events module runtime uploads
+/storage/events/*
+/storage/tmp/*
+!/storage/events/.gitkeep
+!/storage/tmp/.gitkeep

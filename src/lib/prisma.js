@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis;
-const prismaSchemaVersion = "2026-07-29-messaging-v11";
+const prismaSchemaVersion = "2026-07-30-friends-v13";
 const requiredUserFields = ["sessionVersion", "forcedLogoutAt", "passwordHash", "deletedAt", "totalTopUp", "gender", "dob"];
 
 const createPrismaClient = () => new PrismaClient({
@@ -20,7 +20,7 @@ const cachedClientMatchesSchema = globalForPrisma.prismaSchemaVersion === prisma
   && ["details","tags","isGlobal","actionUrl"].every((field)=>cachedUploadAssetFields.includes(field))
   && ["durationMinutes","expiresAt"].every((field)=>cachedUploadAssignmentFields.includes(field))
   && ["reviewedById","reviewedAt","reviewNote","rejectionReason"].every((field)=>cachedAgencyApplicationFields.includes(field))
-  && ["userAlbumItem","specialIdAssignment","specialIdDefinition","gameLog","liveSession","talentPerformance","talentViolation","audioRoom","uploadAsset","uploadAssetAssignment","agencyApplication","conversation","conversationParticipant","message","notification","notificationRead"].every((model)=>Boolean(globalForPrisma.prisma?.[model]));
+  && ["userAlbumItem","specialIdAssignment","specialIdDefinition","gameLog","liveSession","talentPerformance","talentViolation","audioRoom","uploadAsset","uploadAssetAssignment","agencyApplication","conversation","conversationParticipant","message","notification","notificationRead","friendRequest","eventUser","event","eventVersion","eventRefreshToken","uploadLog","publishLog","eventAuditLog"].every((model)=>Boolean(globalForPrisma.prisma?.[model]));
 
 // Fast Refresh keeps globalThis alive. Reuse only a client that contains every
 // field required by the current application schema.

@@ -14,6 +14,7 @@ const nav = [
   ["Agency Management", "/agencies"],
   ["Uploads", "/uploads"],
   ["Audit Logs", "/audit-logs"],
+  ["Events Management", "/events-login"],
   ["Live streams", "#"],
   ["Reports", "#"],
 ];

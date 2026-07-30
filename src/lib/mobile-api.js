@@ -49,6 +49,12 @@ export function mobileApiError(error, fallbackCode = "REQUEST_FAILED") {
     CONVERSATION_NOT_FOUND: [404, "CONVERSATION_NOT_FOUND", "Conversation not found."],
     NOTIFICATION_NOT_FOUND: [404, "NOTIFICATION_NOT_FOUND", "Notification not found."],
     USER_NOT_FOUND: [404, "USER_NOT_FOUND", "The selected user was not found."],
+    FRIEND_REQUEST_NOT_FOUND: [404, "FRIEND_REQUEST_NOT_FOUND", "Friend request not found."],
+    FRIEND_REQUEST_FORBIDDEN: [403, "FRIEND_REQUEST_FORBIDDEN", "You cannot respond to this friend request."],
+    ALREADY_FRIENDS: [409, "ALREADY_FRIENDS", "You are already friends with this user."],
+    REQUEST_ALREADY_PENDING: [409, "REQUEST_ALREADY_PENDING", "A friend request is already pending."],
+    FRIEND_REQUEST_RESOLVED: [409, "FRIEND_REQUEST_RESOLVED", "This friend request has already been resolved."],
+    SELF_FRIEND_REQUEST: [422, "SELF_FRIEND_REQUEST", "You cannot send a friend request to yourself."],
     SELF_CONVERSATION: [422, "SELF_CONVERSATION", "You cannot start a direct conversation with yourself."],
     VALIDATION_ERROR: [
       422,

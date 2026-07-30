@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const features = [
+  ["Events Management", "Host and publish web events for the mobile application", "/events-login"],
   ["Dashboard", "Platform overview and activity", "/home"],
   ["Audit Logs", "Review all portal and administrator activity", "/audit-logs"],
   ["Users / Senders", "Manage users and gift senders", "/users"],

@@ -11,7 +11,12 @@ export default function PortalAutoRefresh() {
   const lastRefresh = useRef(0);
 
   useEffect(() => {
-    if (pathname === "/") return;
+    if (
+      pathname === "/" ||
+      pathname === "/events-login" ||
+      pathname.startsWith("/events-management")
+    )
+      return;
     const refresh = () => {
       if (
         document.visibilityState !== "visible" ||
