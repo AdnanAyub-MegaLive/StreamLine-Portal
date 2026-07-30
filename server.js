@@ -200,10 +200,20 @@ app.prepare().then(async()=>{
       const participantCount=io.sockets.adapter.rooms.get(`audio-room:${room.roomId}`)?.size??1;
       await prisma.audioRoom.update({where:{id:room.id},data:{participantCount}});
       const isOwner=room.ownerId===user.id;
-      const joinedUserPerks=await resolveUserPerks([room.owner,user],connectionOrigin);
+      const joinedUserPerks=await resolveUserPerks([room.owner,user],connectionOrigin,["FRAMES","BADGES","ROOM_BACKGROUNDS","ENTRANCES"]);
       const roomPerks=joinedUserPerks.get(room.owner.publicId);
       const joiningPerks=joinedUserPerks.get(user.publicId);
       ack({success:true,data:{roomId:room.roomId,title:room.title,participantCount,ownerId:room.owner.publicId,isOwner,roomBackgroundUrl:roomPerks?.roomBackgroundUrl??null,owner:{publicId:room.owner.publicId,name:room.owner.name,profileImage:room.owner.profileImage,frameUrl:roomPerks?.frameUrl??null,badgeUrl:roomPerks?.badgeUrl??null}}});
+      io.to(`audio-room:${room.roomId}`).emit("audio-room:entrance",{
+        success:true,
+        data:{
+          roomId:room.roomId,
+          userId,
+          name:user.name,
+          profileImage:user.profileImage??null,
+          entranceUrl:joiningPerks?.entranceUrl??null,
+        },
+      });
       if(!isOwner){
         io.to(`user:${room.owner.publicId}`).emit("audio-room:seat-sync-request",{success:true,data:{roomId:room.roomId,requesterId:userId,requesterName:user.name,requesterProfileImage:user.profileImage??null,requesterFrameUrl:joiningPerks?.frameUrl??null,requesterBadgeUrl:joiningPerks?.badgeUrl??null,reason:"VIEWER_JOINED"}});
       }

@@ -4,6 +4,7 @@ import { createPublicDisplayAssetUrl } from "./upload-assets.js";
 const perkFields = {
   FRAMES: "frameUrl",
   BADGES: "badgeUrl",
+  ENTRANCES: "entranceUrl",
   ROOM_BACKGROUNDS: "roomBackgroundUrl",
 };
 
@@ -59,7 +60,12 @@ export async function resolveUserPerks(
   const result = new Map(
     uniqueUsers.map((user) => [
       user.publicId,
-      { frameUrl: null, badgeUrl: null, roomBackgroundUrl: null },
+      {
+        frameUrl: null,
+        badgeUrl: null,
+        entranceUrl: null,
+        roomBackgroundUrl: null,
+      },
     ]),
   );
   if (!uniqueUsers.length) return result;
@@ -68,6 +74,7 @@ export async function resolveUserPerks(
   const userIds = uniqueUsers.map((user) => user.id);
   const assets = await prisma.uploadAsset.findMany({
     where: {
+      active: true,
       category: { in: categories },
       OR: [
         { isGlobal: true },
