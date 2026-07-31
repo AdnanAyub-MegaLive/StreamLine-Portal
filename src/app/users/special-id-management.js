@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   createSpecialIdDefinition,
+  deleteSpecialIdDefinition,
   revokeSpecialId,
 } from "../database-actions";
 import usePortalData from "../hooks/use-portal-data";
@@ -115,6 +116,7 @@ export default function SpecialIdAssignments({ initialAssignments }) {
 export function SpecialIdCatalog({ initialCatalog }) {
   const [catalog, setCatalog] = usePortalData(initialCatalog);
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(null);
   return (
     <section className="overflow-hidden rounded-2xl border border-[#dce8e5] bg-white">
       <div className="flex flex-col gap-3 border-b border-[#e5ecea] p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -142,6 +144,7 @@ export function SpecialIdCatalog({ initialCatalog }) {
               <th>Top-up requirement</th>
               <th>Default time</th>
               <th>Availability</th>
+              <th className="px-5 text-right">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#edf2f1]">
@@ -154,6 +157,15 @@ export function SpecialIdCatalog({ initialCatalog }) {
                   <span className="rounded-full bg-amber-50 px-2 py-1 text-[9px] font-bold text-amber-700">
                     {item.category}
                   </span>
+                </td>
+                <td className="px-5 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setDeleting(item)}
+                    className="rounded-lg border border-red-200 px-3 py-2 text-[10px] font-bold text-red-600 hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
                 </td>
                 <td>
                   {item.minimumVipLevel ? `VIP ${item.minimumVipLevel}+` : "—"}
@@ -202,7 +214,72 @@ export function SpecialIdCatalog({ initialCatalog }) {
           }}
         />
       )}
+      {deleting && (
+        <DeleteDefinitionModal
+          item={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            setCatalog((current) => current.filter((item) => item.id !== deleting.id));
+            setDeleting(null);
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+function DeleteDefinitionModal({ item, onClose, onDeleted }) {
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  return (
+    <Modal
+      title={`Delete Special ID ${item.code}`}
+      subtitle={item.assignedTo ? `Currently assigned to ${item.assignedTo}` : "This ID is currently available"}
+      onClose={onClose}
+    >
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setPending(true);
+          setError("");
+          const form = new FormData(event.currentTarget);
+          try {
+            await deleteSpecialIdDefinition(
+              item.id,
+              String(form.get("reason")),
+              form.get("revokeActive") === "on",
+            );
+            onDeleted();
+          } catch (exception) {
+            setError(
+              exception?.message?.includes("SPECIAL_ID_HAS_ACTIVE_ASSIGNMENT")
+                ? "Confirm that the current assignment should also be revoked."
+                : "Unable to delete this Special ID.",
+            );
+          } finally {
+            setPending(false);
+          }
+        }}
+      >
+        <p className="mb-4 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+          IDs with historical assignments are archived instead of erased so audit and user history remain valid.
+        </p>
+        {item.assignedTo && (
+          <label className="mb-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
+            <input name="revokeActive" type="checkbox" required className="mt-0.5" />
+            Revoke this ID from {item.assignedTo} and restore their normal ID.
+          </label>
+        )}
+        <Field label="Deletion reason">
+          <textarea name="reason" required maxLength={500} rows={3} className={`${input} h-auto py-3`} placeholder="Explain why this ID should be removed..." />
+        </Field>
+        {error && <p className="mt-3 rounded-lg bg-red-50 p-3 text-xs font-semibold text-red-700">{error}</p>}
+        <div className="mt-6 flex justify-end gap-2 border-t border-[#e8efed] pt-5">
+          <button type="button" onClick={onClose} disabled={pending} className="h-10 rounded-lg border px-4 text-xs font-bold">Cancel</button>
+          <button disabled={pending} className="h-10 rounded-lg bg-red-600 px-5 text-xs font-bold text-white disabled:opacity-50">{pending ? "Deleting…" : "Delete ID"}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

@@ -14,6 +14,8 @@ export default function ProfileManager({ profile, type }) {
   const isTalent = type === "talent";
   const [data, setData] = useState(profile);
   const [modal, setModal] = useState(null);
+  const [officialPending, setOfficialPending] = useState(false);
+  const [actionError, setActionError] = useState("");
   const stats = isTalent
     ? [
         ["Gifts received", `${format.format(data.giftsReceived)} coins`],
@@ -78,6 +80,10 @@ export default function ProfileManager({ profile, type }) {
                   ["Date of birth", data.dob],
                   ["Role", data.role],
                   ["Status", data.status],
+                  [
+                    "Official account",
+                    data.isOfficial ? "Official · Blue badge enabled" : "Not official",
+                  ],
                   ["Joined", data.joined],
                 ]
             ).map(([label, value]) => (
@@ -127,7 +133,35 @@ export default function ProfileManager({ profile, type }) {
                   text="Change account status"
                   onClick={() => setModal("status")}
                 />
+                <Action
+                  text={
+                    officialPending
+                      ? "Updating Official Badge…"
+                      : data.isOfficial
+                        ? "Remove Official Badge"
+                        : "Mark as Official"
+                  }
+                  disabled={officialPending}
+                  onClick={async () => {
+                    const next = !data.isOfficial;
+                    setOfficialPending(true);
+                    setActionError("");
+                    try {
+                      await updateUserAccount(data.id, { isOfficial: next });
+                      setData((current) => ({ ...current, isOfficial: next }));
+                    } catch {
+                      setActionError("Unable to update the official-account badge.");
+                    } finally {
+                      setOfficialPending(false);
+                    }
+                  }}
+                />
               </>
+            )}
+            {actionError && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-[10px] font-semibold text-red-700">
+                {actionError}
+              </p>
             )}
           </div>
         </section>
@@ -291,11 +325,12 @@ function formatFileSize(bytes) {
       : `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
-function Action({ text, onClick }) {
+function Action({ text, onClick, disabled = false }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center justify-between rounded-xl border border-[#e0eae8] px-4 py-3 text-left text-xs font-semibold text-[#405853] hover:border-[#add3cd] hover:bg-[#f4f9f8]"
+      disabled={disabled}
+      className="flex items-center justify-between rounded-xl border border-[#e0eae8] px-4 py-3 text-left text-xs font-semibold text-[#405853] hover:border-[#add3cd] hover:bg-[#f4f9f8] disabled:cursor-wait disabled:opacity-50"
     >
       {text}
       <span>→</span>

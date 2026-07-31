@@ -17,10 +17,10 @@ export async function findFriendRequestByPublicId(requestId, client = prisma) {
     where: { publicId: requestId },
     include: {
       requester: {
-        select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true, deletedAt: true },
+        select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true, isOfficial: true, deletedAt: true },
       },
       addressee: {
-        select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true, deletedAt: true },
+        select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true, isOfficial: true, deletedAt: true },
       },
     },
   });

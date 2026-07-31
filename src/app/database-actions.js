@@ -83,6 +83,8 @@ export async function updateUserAccount(publicId, changes) {
   }
   if (changes.status !== undefined) data.status = enumValue(changes.status);
   if (changes.vipLevel !== undefined) data.vipLevel = Number(changes.vipLevel);
+  if (changes.isOfficial !== undefined)
+    data.isOfficial = Boolean(changes.isOfficial);
   await prisma.user.update({ where: { publicId }, data });
   let action = "UPDATE_USER";
   let description = `${admin.name} updated user ${publicId}`;
@@ -98,6 +100,11 @@ export async function updateUserAccount(publicId, changes) {
   } else if (changes.status !== undefined) {
     action = "CHANGE_USER_STATUS";
     description = `${admin.name} changed user ${publicId} status to ${changes.status}`;
+  } else if (changes.isOfficial !== undefined) {
+    action = changes.isOfficial
+      ? "USER_MARKED_OFFICIAL"
+      : "USER_UNMARKED_OFFICIAL";
+    description = `${admin.name} ${changes.isOfficial ? "marked" : "unmarked"} user ${publicId} as official`;
   } else if (
     changes.name !== undefined ||
     changes.email !== undefined ||
@@ -783,6 +790,79 @@ export async function createSpecialIdDefinition(values) {
     ...definition,
     minimumTopUpAmount: Number(definition.minimumTopUpAmount ?? 0),
   };
+}
+
+export async function deleteSpecialIdDefinition(
+  definitionId,
+  reason,
+  revokeActive = false,
+) {
+  const admin = await requireAdmin();
+  const note = String(reason ?? "").trim().slice(0, 500);
+  if (!note) throw new Error("DELETION_REASON_REQUIRED");
+  await reconcileExpiredSpecialIds();
+  const definition = await prisma.specialIdDefinition.findUniqueOrThrow({
+    where: { id: definitionId },
+    include: {
+      assignments: {
+        where: { status: "ACTIVE", revokedAt: null, expiresAt: { gt: new Date() } },
+        include: { user: { select: { publicId: true } } },
+      },
+      _count: { select: { assignments: true } },
+    },
+  });
+  if (definition.assignments.length && !revokeActive)
+    throw new Error("SPECIAL_ID_HAS_ACTIVE_ASSIGNMENT");
+  const revokedAt = new Date();
+  const mode = definition._count.assignments ? "ARCHIVED" : "DELETED";
+  await prisma.$transaction(async (tx) => {
+    if (definition.assignments.length)
+      await tx.specialIdAssignment.updateMany({
+        where: {
+          definitionId: definition.id,
+          status: "ACTIVE",
+          revokedAt: null,
+          expiresAt: { gt: revokedAt },
+        },
+        data: { status: "REVOKED", revokedAt },
+      });
+    if (definition._count.assignments) {
+      await tx.specialIdDefinition.update({
+        where: { id: definition.id },
+        data: { active: false },
+      });
+    } else {
+      await tx.specialIdDefinition.delete({ where: { id: definition.id } });
+    }
+    await tx.auditLog.create({
+      data: {
+        adminId: admin.id,
+        action: mode === "DELETED" ? "DELETE_SPECIAL_ID" : "ARCHIVE_SPECIAL_ID",
+        category: "USER_MANAGEMENT",
+        entityType: "SpecialIdDefinition",
+        entityId: definition.code,
+        description: `${admin.name} ${mode === "DELETED" ? "deleted" : "archived"} ${definition.category} Special ID ${definition.code}.`,
+        metadata: {
+          reason: note,
+          mode,
+          historicalAssignments: definition._count.assignments,
+          revokedAssignments: definition.assignments.length,
+        },
+      },
+    });
+  });
+  for (const assignment of definition.assignments)
+    emitToUser(assignment.user.publicId, "special-id:revoked", {
+      success: true,
+      data: {
+        normalId: assignment.user.publicId,
+        effectiveId: assignment.user.publicId,
+        specialId: null,
+        reason: note,
+      },
+    });
+  revalidatePath("/users");
+  return { id: definition.id, code: definition.code, mode };
 }
 
 export async function assignSpecialId(

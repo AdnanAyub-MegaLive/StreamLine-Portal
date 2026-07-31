@@ -83,6 +83,7 @@ export async function GET(request) {
         gender: user.gender,
         dob: formatDateOnly(user.dob),
         isVerified: Boolean(user.isVerified),
+        isOfficial: Boolean(user.isOfficial),
       },
     });
   } catch {

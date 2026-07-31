@@ -42,6 +42,7 @@ export async function GET(request) {
         gender: true,
         dob: true,
         isVerified: true,
+        isOfficial: true,
       },
       orderBy: [{ name: "asc" }, { publicId: "asc" }],
       take: 20,

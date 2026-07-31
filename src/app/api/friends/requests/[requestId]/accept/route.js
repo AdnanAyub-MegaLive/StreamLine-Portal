@@ -48,6 +48,7 @@ export async function POST(request, { params }) {
       addresseeGender: user.gender ?? null,
       addresseeDob: formatDateOnly(user.dob),
       addresseeIsVerified: Boolean(user.isVerified),
+      addresseeIsOfficial: Boolean(user.isOfficial),
     });
     return mobileJson({
       success: true,

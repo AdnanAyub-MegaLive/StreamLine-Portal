@@ -101,6 +101,7 @@ export default async function UserProfilePage({ params }) {
     role: display(user.role),
     status: display(user.status),
     vipLevel: user.vipLevel,
+    isOfficial: Boolean(user.isOfficial),
     joined: user.createdAt.toLocaleDateString("en-US", {
       month: "short",
       day: "2-digit",

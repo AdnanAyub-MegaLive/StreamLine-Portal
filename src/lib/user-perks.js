@@ -155,6 +155,7 @@ export function publicUserWithPerks(user, perks) {
     gender: user.gender ?? null,
     dob: formatDateOnly(user.dob),
     isVerified: Boolean(user.isVerified),
+    isOfficial: Boolean(user.isOfficial),
     frameUrl: perks?.frameUrl ?? null,
     badgeUrl: perks?.badgeUrl ?? null,
   };

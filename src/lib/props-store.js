@@ -46,20 +46,37 @@ export async function syncProgressionProps(userId, client = prisma) {
   });
   if (!eligible.length) return;
   const now = new Date();
-  await client.uploadAssetAssignment.createMany({
-    data: eligible.map((asset) => ({
-      assetId: asset.id,
-      userId: user.id,
-      durationMinutes: asset.defaultGrantDurationMinutes,
-      expiresAt: entitlementExpiry(asset, now),
-      source: asset.distribution,
-      sourceReference:
-        asset.distribution === "VIP"
-          ? `VIP_LEVEL_${user.vipLevel}`
-          : `TOTAL_RECHARGE_${user.totalTopUp}`,
-    })),
-    skipDuplicates: true,
+  const existing = await client.uploadAssetAssignment.findMany({
+    where: { userId: user.id, assetId: { in: eligible.map((asset) => asset.id) } },
+    select: { assetId: true, expiresAt: true },
   });
+  const existingByAsset = new Map(existing.map((item) => [item.assetId, item]));
+  await Promise.all(
+    eligible.map((asset) => {
+      const current = existingByAsset.get(asset.id);
+      if (current && (!current.expiresAt || current.expiresAt > now)) return null;
+      const data = {
+        durationMinutes: asset.defaultGrantDurationMinutes,
+        assignedAt: now,
+        expiresAt: entitlementExpiry(asset, now),
+        source: asset.distribution,
+        sourceReference:
+          asset.distribution === "VIP"
+            ? `VIP_LEVEL_${user.vipLevel}`
+            : `TOTAL_RECHARGE_${user.totalTopUp}`,
+      };
+      return current
+        ? client.uploadAssetAssignment.update({
+            where: { assetId_userId: { assetId: asset.id, userId: user.id } },
+            data,
+          })
+        : client.uploadAssetAssignment.upsert({
+            where: { assetId_userId: { assetId: asset.id, userId: user.id } },
+            update: data,
+            create: { assetId: asset.id, userId: user.id, ...data },
+          });
+    }),
+  );
 }
 
 export function activeEntitlementWhere(userId, now = new Date()) {

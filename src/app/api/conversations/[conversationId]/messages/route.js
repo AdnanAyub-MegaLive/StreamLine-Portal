@@ -46,6 +46,7 @@ export async function GET(request, { params }) {
             gender: true,
             dob: true,
             isVerified: true,
+            isOfficial: true,
           },
         },
       },

@@ -54,6 +54,7 @@ export default async function UsersPage() {
       take: 250,
     }),
     prisma.specialIdDefinition.findMany({
+      where: { active: true },
       include: {
         assignments: {
           where: {

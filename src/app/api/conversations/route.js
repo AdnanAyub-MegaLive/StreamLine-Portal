@@ -50,6 +50,7 @@ async function conversationPayload(conversation, user, perks) {
             gender: other.gender ?? null,
             dob: formatDateOnly(other.dob),
             isVerified: Boolean(other.isVerified),
+            isOfficial: Boolean(other.isOfficial),
             frameUrl: perks.get(other.publicId)?.frameUrl ?? null,
             badgeUrl: perks.get(other.publicId)?.badgeUrl ?? null,
           }
@@ -79,6 +80,7 @@ const conversationInclude = {
           gender: true,
           dob: true,
           isVerified: true,
+          isOfficial: true,
         },
       },
     },

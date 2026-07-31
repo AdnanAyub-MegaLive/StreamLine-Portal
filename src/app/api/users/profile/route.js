@@ -158,6 +158,7 @@ export async function PATCH(request) {
           gender: user.gender,
           dob: formatDateOnly(user.dob),
           isVerified: Boolean(user.isVerified),
+          isOfficial: Boolean(user.isOfficial),
           role: user.role,
           status: user.status,
           vipLevel: user.vipLevel,

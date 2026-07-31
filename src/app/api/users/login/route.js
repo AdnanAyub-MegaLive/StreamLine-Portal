@@ -220,6 +220,7 @@ export async function POST(request) {
         gender: user.gender,
         dob: formatDateOnly(user.dob),
         isVerified: Boolean(user.isVerified),
+        isOfficial: Boolean(user.isOfficial),
         role: user.role,
         status: user.status,
         vipLevel: user.vipLevel,

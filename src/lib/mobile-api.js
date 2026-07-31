@@ -31,6 +31,7 @@ export async function requireMobileUser(request) {
       gender: true,
       dob: true,
       isVerified: true,
+      isOfficial: true,
       deletedAt: true,
       sessionVersion: true,
     },
