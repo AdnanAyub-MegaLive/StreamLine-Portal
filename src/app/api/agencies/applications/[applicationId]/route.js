@@ -21,7 +21,7 @@ export async function PATCH(request,{params}) {
 
   try{
     const reviewed=await prisma.$transaction(async(tx)=>{
-      const current=await tx.agencyApplication.findUniqueOrThrow({where:{publicId:applicationId},select:{id:true,publicId:true,status:true,agencyName:true,user:{select:{publicId:true,name:true}}}});
+      const current=await tx.agencyApplication.findUniqueOrThrow({where:{publicId:applicationId},select:{id:true,publicId:true,status:true,agencyName:true,user:{select:{id:true,publicId:true,name:true}}}});
       if(current.status!=="PENDING"){const error=new Error("This application has already been reviewed.");error.code="ALREADY_REVIEWED";throw error;}
       const reviewedAt=new Date();
       const changed=await tx.agencyApplication.updateMany({
@@ -29,10 +29,15 @@ export async function PATCH(request,{params}) {
         data:{status:decision,reviewedById:admin.id,reviewedAt,reviewNote:decision==="APPROVED"?(note||null):null,rejectionReason:decision==="REJECTED"?note:null},
       });
       if(!changed.count){const error=new Error("This application has already been reviewed.");error.code="ALREADY_REVIEWED";throw error;}
+      let agency=null;
+      if(decision==="APPROVED"){
+        agency=await tx.agency.create({data:{publicId:`AGY-${crypto.randomUUID().replaceAll("-","").slice(0,10).toUpperCase()}`,name:current.agencyName,ownerUserId:current.user.id}});
+        await tx.agencyApplication.update({where:{id:current.id},data:{agencyId:agency.id}});
+      }
       await tx.auditLog.create({data:{adminId:admin.id,action:`AGENCY_APPLICATION_${decision}`,category:"AGENCY_MANAGEMENT",entityType:"AgencyApplication",entityId:current.publicId,description:`${admin.name} ${decision.toLowerCase()} agency application ${current.publicId} for ${current.agencyName}.`,metadata:{decision,note:note||null,userId:current.user.publicId,applicant:current.user.name,agencyName:current.agencyName}}});
-      return {status:decision,reviewedAt,note:note||null};
+      return {status:decision,reviewedAt,note:note||null,agency};
     });
-    return json({success:true,data:{applicationId,status:reviewed.status,reviewedAt:reviewed.reviewedAt.toISOString(),reviewNote:decision==="APPROVED"?reviewed.note:null,rejectionReason:decision==="REJECTED"?reviewed.note:null,reviewedBy:{name:admin.name,email:admin.email}}});
+    return json({success:true,data:{applicationId,status:reviewed.status,agency:reviewed.agency?{id:reviewed.agency.publicId,name:reviewed.agency.name}:null,reviewedAt:reviewed.reviewedAt.toISOString(),reviewNote:decision==="APPROVED"?reviewed.note:null,rejectionReason:decision==="REJECTED"?reviewed.note:null,reviewedBy:{name:admin.name,email:admin.email}}});
   }catch(error){
     if(error?.code==="P2025")return json({success:false,error:{code:"APPLICATION_NOT_FOUND",message:"Agency application not found."}},404);
     if(error?.code==="ALREADY_REVIEWED")return json({success:false,error:{code:error.code,message:error.message}},409);

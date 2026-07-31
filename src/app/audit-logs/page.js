@@ -11,6 +11,7 @@ const nav = [
   ["Users / Senders", "/users"],
   ["Host Management", "/talents"],
   ["Agency Management", "/agencies"],
+  ["Rules & Profit Split", "/platform-rules"],
   ["Uploads", "/uploads"],
   ["Audit Logs", "/audit-logs"],
   ["Events Management", "/events-login"],
@@ -18,20 +19,50 @@ const nav = [
   ["Reports", "#"],
 ];
 
-export default async function AuditLogsPage() {
+const pageSize = 50;
+
+export default async function AuditLogsPage({ searchParams }) {
   const session = await auth();
   if (!session?.user) redirect("/");
-  const [records, totalToday, securityCount] = await Promise.all([
-    prisma.auditLog.findMany({
-      include: { admin: true },
-      orderBy: { createdAt: "desc" },
-      take: 250,
-    }),
+  const params = await searchParams;
+  const query = String(params?.q ?? "").trim().slice(0, 200);
+  const requestedCategory = String(params?.category ?? "All").trim();
+  const category = requestedCategory === "All" ? "All" : requestedCategory;
+  const requestedPage = Number.parseInt(String(params?.page ?? "1"), 10);
+  const currentPage = Number.isSafeInteger(requestedPage) && requestedPage > 0
+    ? requestedPage
+    : 1;
+  const where = {
+    ...(category !== "All" ? { category } : {}),
+    ...(query
+      ? {
+          OR: [
+            { action: { contains: query, mode: "insensitive" } },
+            { description: { contains: query, mode: "insensitive" } },
+            { entityId: { contains: query, mode: "insensitive" } },
+            { admin: { is: { name: { contains: query, mode: "insensitive" } } } },
+            { admin: { is: { email: { contains: query, mode: "insensitive" } } } },
+          ],
+        }
+      : {}),
+  };
+  const [filteredTotal, totalRecords, totalToday, securityCount] = await Promise.all([
+    prisma.auditLog.count({ where }),
+    prisma.auditLog.count(),
     prisma.auditLog.count({
       where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
     }),
     prisma.auditLog.count({ where: { category: "SECURITY" } }),
   ]);
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / pageSize));
+  const page = Math.min(currentPage, totalPages);
+  const records = await prisma.auditLog.findMany({
+      where,
+      include: { admin: true },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
   const logs = records.map((log) => ({
     id: log.id,
     createdAt: log.createdAt.toLocaleString("en-US"),
@@ -97,7 +128,7 @@ export default async function AuditLogsPage() {
           </div>
           <div className="mb-6 grid gap-3 sm:grid-cols-3">
             {[
-              ["Total records", records.length, "Latest 250 records"],
+              ["Total records", totalRecords, "Complete audit history"],
               ["Activity today", totalToday, "Actions since midnight"],
               ["Security events", securityCount, "Bans and restrictions"],
             ].map(([label, value, note]) => (
@@ -113,7 +144,15 @@ export default async function AuditLogsPage() {
               </div>
             ))}
           </div>
-          <AuditLogTable logs={logs} />
+          <AuditLogTable
+            logs={logs}
+            query={query}
+            category={category}
+            page={page}
+            pageSize={pageSize}
+            total={filteredTotal}
+            totalPages={totalPages}
+          />
         </div>
       </section>
     </main>

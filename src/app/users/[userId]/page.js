@@ -36,7 +36,7 @@ export default async function UserProfilePage({ params }) {
     },
   });
   if (!user) notFound();
-  const [messages, notifications] = await Promise.all([
+  const [messages, notifications, receivedGiftTotals] = await Promise.all([
     prisma.message.findMany({
       where: {
         OR: [
@@ -83,6 +83,11 @@ export default async function UserProfilePage({ params }) {
       orderBy: { createdAt: "desc" },
       take: 200,
     }),
+    prisma.giftSettlement.aggregate({
+      where: { giftTransaction: { recipientUserId: user.id } },
+      _count: true,
+      _sum: { grossCoins: true, reusableCoins: true },
+    }),
   ]);
   const device = user.devices[0];
   const profile = {
@@ -104,6 +109,10 @@ export default async function UserProfilePage({ params }) {
     totalSpent: Number(user.totalSpent),
     balance: Number(user.coinBalance),
     gifts: user._count.sentGifts,
+    giftsReceived: receivedGiftTotals._count,
+    receivedGiftValue: Number(receivedGiftTotals._sum.grossCoins ?? 0n),
+    reusableGiftCoins: Number(receivedGiftTotals._sum.reusableCoins ?? 0n),
+    salaryCoinBalance: Number(user.hostSalaryCoinBalance),
     lastLogin: device?.lastLoginAt?.toLocaleString("en-US") ?? "Never",
     ip: device?.lastLoginIp ?? "—",
     mac: device?.macAddress ?? "—",

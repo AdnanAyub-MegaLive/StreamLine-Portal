@@ -9,6 +9,7 @@ const navItems = [
   { label: "Users / Senders", href: "/users" },
   { label: "Host Management", href: "/talents" },
   { label: "Agency Management", href: "/agencies" },
+  { label: "Rules & Profit Split", href: "/platform-rules" },
   { label: "Uploads", href: "/uploads" },
   { label: "Audit Logs", href: "/audit-logs" },
   { label: "Events Management", href: "/events-login" },

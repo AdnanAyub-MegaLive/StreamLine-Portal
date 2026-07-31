@@ -6,6 +6,7 @@ const perkFields = {
   FRAMES: "frameUrl",
   BADGES: "badgeUrl",
   ENTRANCES: "entranceUrl",
+  TAIL_LIGHTS: "rideUrl",
   RIDES: "rideUrl",
   ROOM_BACKGROUNDS: "roomBackgroundUrl",
 };

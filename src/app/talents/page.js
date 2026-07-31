@@ -13,6 +13,7 @@ const nav = [
   ["Users / Senders", "/users"],
   ["Host Management", "/talents"],
   ["Agency Management", "/agencies"],
+  ["Rules & Profit Split", "/platform-rules"],
   ["Uploads", "/uploads"],
   ["Audit Logs", "/audit-logs"],
   ["Events Management", "/events-login"],
@@ -24,7 +25,7 @@ export default async function TalentsPage() {
   const session = await auth();
   if (!session?.user) redirect("/");
   await reconcileExpiredBans();
-  const [talents, devices] = await Promise.all([
+  const [talents, devices, agencies] = await Promise.all([
     prisma.talent.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -43,6 +44,11 @@ export default async function TalentsPage() {
       where: { talentId: { not: null } },
       include: { talent: true },
       orderBy: { lastLoginAt: "desc" },
+    }),
+    prisma.agency.findMany({
+      where: { status: "ACTIVE" },
+      select: { publicId: true, name: true },
+      orderBy: { name: "asc" },
     }),
   ]);
   const talentData = talents.map((talent) => [
@@ -205,7 +211,10 @@ export default async function TalentsPage() {
                 earnings.
               </p>
             </div>
-            <AddAccountModal type="talent" />
+            <AddAccountModal
+              type="talent"
+              agencies={agencies.map((agency) => ({ id: agency.publicId, name: agency.name }))}
+            />
           </div>
           <TalentTabs
             initialTalents={talentData}

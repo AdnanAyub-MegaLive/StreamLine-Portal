@@ -101,11 +101,13 @@ model User {
   gender                   String?
   dob                      DateTime?
   isVerified               Boolean                   @default(false)
+  agencyId                 String?
   passwordHash             String?
   role                     UserRole                  @default(LISTENER)
   status                   AccountStatus             @default(ACTIVE)
   vipLevel                 Int                       @default(0)
   coinBalance              BigInt                    @default(0)
+  hostSalaryCoinBalance    BigInt                    @default(0)
   totalSpent               BigInt                    @default(0)
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
@@ -114,7 +116,8 @@ model User {
   forcedLogoutAt           DateTime?
   deletedAt                DateTime?
   devices                  Device[]
-  sentGifts                GiftTransaction[]
+  sentGifts                GiftTransaction[]         @relation("GiftSender")
+  receivedGifts            GiftTransaction[]         @relation("GiftRecipientUser")
   bans                     Ban[]
   coinAdjustments          CoinAdjustment[]
   albumItems               UserAlbumItem[]
@@ -132,10 +135,45 @@ model User {
   friendRequestsSent       FriendRequest[]           @relation("FriendRequestsSent")
   friendRequestsReceived   FriendRequest[]           @relation("FriendRequestsReceived")
   totalTopUp               BigInt                    @default(0)
+  agency                   Agency?                   @relation("UserAgency", fields: [agencyId], references: [id], onDelete: SetNull)
+  ownedAgency              Agency?                   @relation("AgencyOwner")
 
   @@index([status])
   @@index([vipLevel])
   @@index([deletedAt])
+  @@index([agencyId])
+}
+
+model Agency {
+  id                    String              @id @default(cuid())
+  publicId              String              @unique
+  name                  String
+  ownerUserId           String?             @unique
+  status                String              @default("ACTIVE")
+  commissionCoinBalance BigInt              @default(0)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  owner                 User?               @relation("AgencyOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  userHosts             User[]              @relation("UserAgency")
+  talents               Talent[]
+  applications          AgencyApplication[]
+  settlements           GiftSettlement[]
+
+  @@index([status, createdAt])
+}
+
+model ProfitSplitRule {
+  id                         String   @id @default("GLOBAL")
+  hostShareBps               Int      @default(4000)
+  agencyShareBps             Int      @default(2000)
+  companyShareBps            Int      @default(4000)
+  normalUserReusableShareBps Int      @default(4000)
+  version                    Int      @default(1)
+  updatedByAdminId           String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([updatedAt])
 }
 
 model FriendRequest {
@@ -435,6 +473,7 @@ model AgencyApplication {
   cnicBackMime    String
   status          String    @default("PENDING")
   reviewedById    String?
+  agencyId        String?   @unique
   reviewedAt      DateTime?
   reviewNote      String?
   rejectionReason String?
@@ -442,6 +481,7 @@ model AgencyApplication {
   updatedAt       DateTime  @updatedAt
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   reviewedBy      Admin?    @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+  agency          Agency?   @relation(fields: [agencyId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([userId])
@@ -449,35 +489,39 @@ model AgencyApplication {
 }
 
 model Talent {
-  id                String               @id @default(cuid())
-  publicId          String               @unique
-  displayName       String
-  legalName         String
-  email             String               @unique
-  phone             String?
-  country           String?
-  profileImage      String?
-  identityCardImage String?
-  type              TalentType
-  status            AccountStatus        @default(PENDING)
-  verification      VerificationStatus   @default(PENDING)
-  coinBalance       BigInt               @default(0)
-  totalGiftsValue   BigInt               @default(0)
-  followers         Int                  @default(0)
-  liveMinutes       Int                  @default(0)
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  devices           Device[]
-  receivedGifts     GiftTransaction[]
-  verifications     TalentVerification[]
-  salaryHistory     SalaryHistory[]
-  bans              Ban[]
-  liveSessions      LiveSession[]
-  performance       TalentPerformance[]
-  violations        TalentViolation[]
+  id                    String               @id @default(cuid())
+  publicId              String               @unique
+  displayName           String
+  legalName             String
+  email                 String               @unique
+  phone                 String?
+  country               String?
+  profileImage          String?
+  identityCardImage     String?
+  type                  TalentType
+  status                AccountStatus        @default(PENDING)
+  verification          VerificationStatus   @default(PENDING)
+  coinBalance           BigInt               @default(0)
+  hostSalaryCoinBalance BigInt               @default(0)
+  totalGiftsValue       BigInt               @default(0)
+  followers             Int                  @default(0)
+  liveMinutes           Int                  @default(0)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  agencyId              String
+  devices               Device[]
+  receivedGifts         GiftTransaction[]
+  verifications         TalentVerification[]
+  salaryHistory         SalaryHistory[]
+  bans                  Ban[]
+  liveSessions          LiveSession[]
+  performance           TalentPerformance[]
+  violations            TalentViolation[]
+  agency                Agency               @relation(fields: [agencyId], references: [id], onDelete: Restrict)
 
   @@index([type])
   @@index([verification])
+  @@index([agencyId])
 }
 
 model Device {
@@ -503,19 +547,46 @@ model Device {
 }
 
 model GiftTransaction {
-  id        String   @id @default(cuid())
-  senderId  String
-  talentId  String
-  giftName  String
-  quantity  Int      @default(1)
-  coinValue BigInt
-  roomId    String?
-  createdAt DateTime @default(now())
-  sender    User     @relation(fields: [senderId], references: [id], onDelete: Restrict)
-  talent    Talent   @relation(fields: [talentId], references: [id], onDelete: Restrict)
+  id              String          @id @default(cuid())
+  senderId        String
+  talentId        String?
+  recipientUserId String?
+  giftName        String
+  quantity        Int             @default(1)
+  coinValue       BigInt
+  roomId          String?
+  createdAt       DateTime        @default(now())
+  sender          User            @relation("GiftSender", fields: [senderId], references: [id], onDelete: Restrict)
+  recipientUser   User?           @relation("GiftRecipientUser", fields: [recipientUserId], references: [id], onDelete: Restrict)
+  talent          Talent?         @relation(fields: [talentId], references: [id], onDelete: Restrict)
+  settlement      GiftSettlement?
 
   @@index([senderId, createdAt])
   @@index([talentId, createdAt])
+  @@index([recipientUserId, createdAt])
+}
+
+model GiftSettlement {
+  id                String          @id @default(cuid())
+  giftTransactionId String          @unique
+  agencyId          String?
+  recipientType     String
+  grossCoins        BigInt
+  hostSalaryCoins   BigInt          @default(0)
+  agencyCoins       BigInt          @default(0)
+  companyCoins      BigInt          @default(0)
+  reusableCoins     BigInt          @default(0)
+  hostShareBps      Int
+  agencyShareBps    Int
+  companyShareBps   Int
+  reusableShareBps  Int
+  policyVersion     Int
+  createdAt         DateTime        @default(now())
+  giftTransaction   GiftTransaction @relation(fields: [giftTransactionId], references: [id], onDelete: Restrict)
+  agency            Agency?         @relation(fields: [agencyId], references: [id], onDelete: Restrict)
+
+  @@index([agencyId, createdAt])
+  @@index([recipientType, createdAt])
 }
 
 model CoinAdjustment {

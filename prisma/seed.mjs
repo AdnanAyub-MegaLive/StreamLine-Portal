@@ -174,6 +174,16 @@ async function main() {
     },
   });
 
+  const legacyAgency = await prisma.agency.upsert({
+    where: { publicId: "AGY-LEGACY" },
+    update: { name: "Legacy Host Agency", status: "ACTIVE" },
+    create: {
+      publicId: "AGY-LEGACY",
+      name: "Legacy Host Agency",
+      status: "ACTIVE",
+    },
+  });
+
   const savedUsers = {};
   for (const [
     publicId,
@@ -200,6 +210,7 @@ async function main() {
         vipLevel,
         coinBalance,
         totalSpent,
+        agencyId: role === "HOST" ? legacyAgency.id : null,
       },
       create: {
         publicId,
@@ -212,6 +223,7 @@ async function main() {
         vipLevel,
         coinBalance,
         totalSpent,
+        agencyId: role === "HOST" ? legacyAgency.id : null,
       },
     });
   }
@@ -245,6 +257,7 @@ async function main() {
         totalGiftsValue,
         followers,
         liveMinutes,
+        agencyId: legacyAgency.id,
       },
       create: {
         publicId,
@@ -259,6 +272,7 @@ async function main() {
         totalGiftsValue,
         followers,
         liveMinutes,
+        agencyId: legacyAgency.id,
       },
     });
   }

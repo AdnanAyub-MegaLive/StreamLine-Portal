@@ -8,7 +8,7 @@ const inputClass =
   "h-11 w-full rounded-lg border border-[#dce6e4] bg-white px-3.5 text-xs text-[#29423d] outline-none placeholder:text-[#9ba9a6] focus:border-[#2ca89c] focus:ring-3 focus:ring-[#2ca89c]/10";
 const labelClass = "mb-2 block text-xs font-bold text-[#29423d]";
 
-export default function AddAccountModal({ type }) {
+export default function AddAccountModal({ type, agencies = [] }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -30,7 +30,9 @@ export default function AddAccountModal({ type }) {
           ? "A user with this phone number already exists."
           : exception?.message?.includes("EMAIL_ALREADY_EXISTS")
             ? "A user with this email address already exists."
-            : "Unable to create the account. Please check the details.",
+            : exception?.message?.includes("HOST_AGENCY_REQUIRED")
+              ? "Select an active agency before creating this host."
+              : "Unable to create the account. Please check the details.",
       );
     } finally {
       setPending(false);
@@ -184,6 +186,22 @@ export default function AddAccountModal({ type }) {
                         <option>Video Streamer</option>
                         <option>Audio Room Host</option>
                         <option>Video & Audio Host</option>
+                      </select>
+                    </Field>
+                    <Field label="Agency" id="talent-agency">
+                      <select
+                        className={inputClass}
+                        id="talent-agency"
+                        name="agencyId"
+                        required
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Select agency</option>
+                        {agencies.map((agency) => (
+                          <option key={agency.id} value={agency.id}>
+                            {agency.name} · {agency.id}
+                          </option>
+                        ))}
                       </select>
                     </Field>
                     <Field label="Verification status" id="verification-status">

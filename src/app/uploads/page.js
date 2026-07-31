@@ -12,6 +12,7 @@ const nav = [
   ["Users / Senders", "/users"],
   ["Host Management", "/talents"],
   ["Agency Management", "/agencies"],
+  ["Rules & Profit Split", "/platform-rules"],
   ["Uploads", "/uploads"],
   ["Audit Logs", "/audit-logs"],
   ["Events Management", "/events-login"],

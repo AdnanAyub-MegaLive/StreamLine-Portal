@@ -67,12 +67,20 @@ const normalizeEmail = (value) =>
 
 export async function updateUserAccount(publicId, changes) {
   const admin = await requireAdmin();
+  const currentUser = await prisma.user.findUniqueOrThrow({
+    where: { publicId },
+    select: { agencyId: true },
+  });
   const data = {};
   if (changes.name !== undefined) data.name = changes.name;
   if (changes.email !== undefined) data.email = normalizeEmail(changes.email);
   if (changes.phone !== undefined) data.phone = normalizePhone(changes.phone);
   if (changes.country !== undefined) data.country = changes.country;
-  if (changes.role !== undefined) data.role = enumValue(changes.role);
+  if (changes.role !== undefined) {
+    data.role = enumValue(changes.role);
+    if (data.role === "HOST" && !currentUser.agencyId)
+      throw new Error("HOST_AGENCY_REQUIRED");
+  }
   if (changes.status !== undefined) data.status = enumValue(changes.status);
   if (changes.vipLevel !== undefined) data.vipLevel = Number(changes.vipLevel);
   await prisma.user.update({ where: { publicId }, data });
@@ -293,6 +301,10 @@ export async function createAccount(type, values) {
     });
     revalidatePath("/users");
   } else {
+    const agency = await prisma.agency.findFirst({
+      where: { publicId: String(values.agencyId ?? ""), status: "ACTIVE" },
+    });
+    if (!agency) throw new Error("HOST_AGENCY_REQUIRED");
     const latest = await prisma.talent.findMany({ select: { publicId: true } });
     const next =
       Math.max(
@@ -311,6 +323,7 @@ export async function createAccount(type, values) {
         type: enumValue(values.talentType),
         verification: enumValue(values.verificationStatus),
         status: "PENDING",
+        agencyId: agency.id,
       },
     });
     await logActivity(admin, {
@@ -319,7 +332,7 @@ export async function createAccount(type, values) {
       entityType: "Talent",
       entityId: publicId,
       description: `${admin.name} created host ${values.displayName} (${publicId})`,
-      metadata: { email: values.email, type: values.talentType },
+      metadata: { email: values.email, type: values.talentType, agencyId: agency.publicId },
     });
     revalidatePath("/talents");
   }

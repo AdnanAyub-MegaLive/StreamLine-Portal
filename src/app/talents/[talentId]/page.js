@@ -13,6 +13,7 @@ export default async function TalentProfilePage({ params }) {
     include: {
       devices: { orderBy: { lastLoginAt: "desc" }, take: 1 },
       salaryHistory: { orderBy: { periodEnd: "desc" }, take: 1 },
+      agency: { select: { publicId: true, name: true } },
     },
   });
   if (!talent) notFound();
@@ -36,6 +37,8 @@ export default async function TalentProfilePage({ params }) {
     giftsReceived: Number(talent.totalGiftsValue),
     followers: talent.followers,
     salary: Number(salary?.amount ?? 0),
+    salaryCoinBalance: Number(talent.hostSalaryCoinBalance),
+    agency: `${talent.agency.name} · ${talent.agency.publicId}`,
     liveHours: Math.round(talent.liveMinutes / 60),
     lastLogin: device?.lastLoginAt?.toLocaleString("en-US") ?? "Never",
     ip: device?.lastLoginIp ?? "—",

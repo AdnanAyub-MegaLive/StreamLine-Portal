@@ -69,6 +69,32 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const user = await authenticatedUser(request);
+    if (user.role !== "HOST" || !user.agencyId)
+      return json(
+        {
+          success: false,
+          error: {
+            code: "HOST_AGENCY_REQUIRED",
+            message: "Only a host linked to an active agency can create or manage an audio room.",
+          },
+        },
+        403,
+      );
+    const agency = await prisma.agency.findFirst({
+      where: { id: user.agencyId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!agency)
+      return json(
+        {
+          success: false,
+          error: {
+            code: "AGENCY_INACTIVE",
+            message: "The host's agency is not active.",
+          },
+        },
+        403,
+      );
     const perks = (
       await resolveUserPerks([user], requestOrigin(request))
     ).get(user.publicId);

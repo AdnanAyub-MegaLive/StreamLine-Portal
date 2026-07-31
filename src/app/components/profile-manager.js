@@ -17,6 +17,8 @@ export default function ProfileManager({ profile, type }) {
   const stats = isTalent
     ? [
         ["Gifts received", `${format.format(data.giftsReceived)} coins`],
+        ["Salary coin balance", `${format.format(data.salaryCoinBalance)} coins`],
+        ["Agency", data.agency],
         ["Followers", format.format(data.followers)],
         ["Monthly salary", `$${format.format(data.salary)}`],
         ["Live hours", `${data.liveHours} hrs`],
@@ -25,12 +27,14 @@ export default function ProfileManager({ profile, type }) {
         ["Total spending", `${format.format(data.totalSpent)} coins`],
         ["Current balance", `${format.format(data.balance)} coins`],
         ["Gifts sent", format.format(data.gifts)],
+        ["Gifts received", format.format(data.giftsReceived)],
+        ["Reusable gift coins", `${format.format(data.reusableGiftCoins)} coins`],
         ["VIP level", data.vipLevel ? `VIP ${data.vipLevel}` : "None"],
       ];
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {stats.map(([label, value]) => (
           <div
             key={label}

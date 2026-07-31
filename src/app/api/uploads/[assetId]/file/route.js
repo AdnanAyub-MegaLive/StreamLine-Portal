@@ -11,6 +11,7 @@ const publicDisplayCategories = new Set([
   "BADGES",
   "ROOM_BACKGROUNDS",
   "ENTRANCES",
+  "TAIL_LIGHTS",
   "RIDES",
 ]);
 

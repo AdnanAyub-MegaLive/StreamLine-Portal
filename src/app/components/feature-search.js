@@ -71,6 +71,11 @@ const features = [
     "/agencies",
   ],
   [
+    "Rules & Profit Split",
+    "Manage host eligibility and gift settlement percentages",
+    "/platform-rules",
+  ],
+  [
     "Agency Tasks",
     "Manage agency targets and tasks",
     "/agencies?tab=Agency%20Tasks",
