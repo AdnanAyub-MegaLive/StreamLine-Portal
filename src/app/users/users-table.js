@@ -81,7 +81,7 @@ export default function UsersTable({ initialData, specialIdCatalog }) {
             <tr className="bg-[#f8fbfa] text-[10px] tracking-wider text-[#7b8e89] uppercase">
               <th className="px-5 py-3.5">User</th>
               <th>Special ID</th>
-              <th>Role</th>
+              <th>Roles</th>
               <th>VIP</th>
               <th>Status</th>
               <th>Password</th>
@@ -130,7 +130,20 @@ export default function UsersTable({ initialData, specialIdCatalog }) {
                     <span className="text-xs text-[#a1afac]">—</span>
                   )}
                 </td>
-                <td className="text-xs">{user.role}</td>
+                <td>
+                  <div className="flex min-w-40 max-w-64 flex-wrap gap-1.5">
+                    {(user.roles?.length ? user.roles : [user.role]).map(
+                      (role) => (
+                        <span
+                          key={role}
+                          className="rounded-full border border-[#cfe4e0] bg-[#eef8f6] px-2 py-1 text-[9px] font-bold text-[#176e65]"
+                        >
+                          {role}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                </td>
                 <td>
                   {user.vipLevel ? (
                     <span className="rounded-full bg-amber-50 px-2 py-1 text-[9px] font-bold text-amber-700">
