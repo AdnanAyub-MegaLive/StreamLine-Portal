@@ -1,10 +1,12 @@
 import { prisma } from "./prisma.js";
 import { createPublicDisplayAssetUrl } from "./upload-assets.js";
+import { formatDateOnly } from "./date-only.js";
 
 const perkFields = {
   FRAMES: "frameUrl",
   BADGES: "badgeUrl",
   ENTRANCES: "entranceUrl",
+  RIDES: "rideUrl",
   ROOM_BACKGROUNDS: "roomBackgroundUrl",
 };
 
@@ -64,6 +66,7 @@ export async function resolveUserPerks(
         frameUrl: null,
         badgeUrl: null,
         entranceUrl: null,
+        rideUrl: null,
         roomBackgroundUrl: null,
       },
     ]),
@@ -148,6 +151,9 @@ export function publicUserWithPerks(user, perks) {
     publicId: user.publicId,
     name: user.name,
     profileImage: user.profileImage,
+    gender: user.gender ?? null,
+    dob: formatDateOnly(user.dob),
+    isVerified: Boolean(user.isVerified),
     frameUrl: perks?.frameUrl ?? null,
     badgeUrl: perks?.badgeUrl ?? null,
   };

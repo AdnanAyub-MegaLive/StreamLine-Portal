@@ -1,4 +1,5 @@
 import { prisma } from "./prisma.js";
+import { formatDateOnly } from "./date-only.js";
 
 export const WORLD_CONVERSATION_ID = "CONV-WORLD";
 
@@ -43,6 +44,9 @@ export function serializeMessage(message, senderPerks) {
     senderId: message.sender?.publicId ?? null,
     senderName: message.sender?.name ?? "System",
     senderProfileImage: message.sender?.profileImage ?? null,
+    senderGender: message.sender?.gender ?? null,
+    senderDob: formatDateOnly(message.sender?.dob),
+    senderIsVerified: Boolean(message.sender?.isVerified),
     senderFrameUrl: senderPerks?.frameUrl ?? null,
     senderBadgeUrl: senderPerks?.badgeUrl ?? null,
     body: message.body,
@@ -75,7 +79,14 @@ export async function createMessage(
       },
       include: {
         sender: {
-          select: { publicId: true, name: true, profileImage: true },
+          select: {
+            publicId: true,
+            name: true,
+            profileImage: true,
+            gender: true,
+            dob: true,
+            isVerified: true,
+          },
         },
       },
     });

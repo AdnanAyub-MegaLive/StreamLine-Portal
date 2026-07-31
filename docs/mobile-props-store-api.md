@@ -25,8 +25,9 @@ Ownership may be permanent (`expiresAt: null`) or time-limited. Expired items
 must not be shown as usable. Only one item per equippable category can be active
 at once.
 
-Equippable categories are `FRAMES`, `ENTRANCES`, `TAIL_LIGHTS`, `BADGES`,
-`CHAT_BOXES`, and `ROOM_BACKGROUNDS`. `GIFTS` are catalog/ownership items but
+Equippable categories are `FRAMES`, `ENTRANCES` (shown as Entrance Strip in
+the portal), `RIDES`, `TAIL_LIGHTS`, `BADGES`, `CHAT_BOXES`, and
+`ROOM_BACKGROUNDS`. `GIFTS` are catalog/ownership items but
 are not profile props. `BANNERS` are marketing content and are never owned.
 
 ## Store catalog

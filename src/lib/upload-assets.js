@@ -1,7 +1,8 @@
 export const uploadCategories = {
   Banners: "BANNERS",
   Frames: "FRAMES",
-  Entrances: "ENTRANCES",
+  "Entrance Strip": "ENTRANCES",
+  Rides: "RIDES",
   "Tail-lights": "TAIL_LIGHTS",
   Gifts: "GIFTS",
   Badges: "BADGES",

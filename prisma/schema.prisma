@@ -91,46 +91,47 @@ model AuditLog {
 }
 
 model User {
-  id                 String                  @id @default(cuid())
-  publicId           String                  @unique
-  name               String
-  email              String?                 @unique
-  phone              String                  @unique
-  country            String?
-  profileImage       String?
-  gender             String?
-  dob                DateTime?
-  passwordHash       String?
-  role               UserRole                @default(LISTENER)
-  status             AccountStatus           @default(ACTIVE)
-  vipLevel           Int                     @default(0)
-  coinBalance        BigInt                  @default(0)
-  totalSpent         BigInt                  @default(0)
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  lastLoginAt        DateTime?
-  sessionVersion     Int                     @default(0)
-  forcedLogoutAt     DateTime?
-  deletedAt          DateTime?
-  devices            Device[]
-  sentGifts          GiftTransaction[]
-  bans               Ban[]
-  coinAdjustments    CoinAdjustment[]
-  albumItems         UserAlbumItem[]
-  specialIds         SpecialIdAssignment[]
-  gameLogs           GameLog[]
-  audioRooms         AudioRoom[]
-  uploadAssignments  UploadAssetAssignment[]
-  equippedProps      UserEquippedProp[]
-  propPurchases      PropPurchase[]
-  agencyApplications AgencyApplication[]
+  id                       String                    @id @default(cuid())
+  publicId                 String                    @unique
+  name                     String
+  email                    String?                   @unique
+  phone                    String                    @unique
+  country                  String?
+  profileImage             String?
+  gender                   String?
+  dob                      DateTime?
+  isVerified               Boolean                   @default(false)
+  passwordHash             String?
+  role                     UserRole                  @default(LISTENER)
+  status                   AccountStatus             @default(ACTIVE)
+  vipLevel                 Int                       @default(0)
+  coinBalance              BigInt                    @default(0)
+  totalSpent               BigInt                    @default(0)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  lastLoginAt              DateTime?
+  sessionVersion           Int                       @default(0)
+  forcedLogoutAt           DateTime?
+  deletedAt                DateTime?
+  devices                  Device[]
+  sentGifts                GiftTransaction[]
+  bans                     Ban[]
+  coinAdjustments          CoinAdjustment[]
+  albumItems               UserAlbumItem[]
+  specialIds               SpecialIdAssignment[]
+  gameLogs                 GameLog[]
+  audioRooms               AudioRoom[]
+  uploadAssignments        UploadAssetAssignment[]
+  equippedProps            UserEquippedProp[]
+  propPurchases            PropPurchase[]
+  agencyApplications       AgencyApplication[]
   conversationParticipants ConversationParticipant[]
-  sentMessages       Message[]
-  notifications      Notification[]
-  notificationReads  NotificationRead[]
-  friendRequestsSent FriendRequest[]          @relation("FriendRequestsSent")
-  friendRequestsReceived FriendRequest[]      @relation("FriendRequestsReceived")
-  totalTopUp         BigInt                  @default(0)
+  sentMessages             Message[]
+  notifications            Notification[]
+  notificationReads        NotificationRead[]
+  friendRequestsSent       FriendRequest[]           @relation("FriendRequestsSent")
+  friendRequestsReceived   FriendRequest[]           @relation("FriendRequestsReceived")
+  totalTopUp               BigInt                    @default(0)
 
   @@index([status])
   @@index([vipLevel])
@@ -138,15 +139,15 @@ model User {
 }
 
 model FriendRequest {
-  id          String   @id @default(cuid())
-  publicId    String   @unique
-  pairKey     String   @unique
+  id          String    @id @default(cuid())
+  publicId    String    @unique
+  pairKey     String    @unique
   requesterId String
-  requester   User     @relation("FriendRequestsSent", fields: [requesterId], references: [id], onDelete: Cascade)
+  requester   User      @relation("FriendRequestsSent", fields: [requesterId], references: [id], onDelete: Cascade)
   addresseeId String
-  addressee   User     @relation("FriendRequestsReceived", fields: [addresseeId], references: [id], onDelete: Cascade)
-  status      String   @default("PENDING")
-  createdAt   DateTime @default(now())
+  addressee   User      @relation("FriendRequestsReceived", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      String    @default("PENDING")
+  createdAt   DateTime  @default(now())
   respondedAt DateTime?
 
   @@unique([requesterId, addresseeId])
@@ -243,55 +244,55 @@ model EventUser {
 }
 
 model Event {
-  id             String         @id @default(cuid())
-  publicId       String         @unique
-  name           String
-  slug           String         @unique
-  folderName     String
-  entryFile      String         @default("index.html")
-  version        Int            @default(1)
-  latestVersion  Int            @default(1)
-  status         EventStatus    @default(DRAFT)
-  createdById    String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  publishedAt    DateTime?
-  createdBy      EventUser?     @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  versions       EventVersion[]
-  uploadLogs     UploadLog[]
-  publishLogs    PublishLog[]
-  auditLogs      EventAuditLog[]
+  id            String          @id @default(cuid())
+  publicId      String          @unique
+  name          String
+  slug          String          @unique
+  folderName    String
+  entryFile     String          @default("index.html")
+  version       Int             @default(1)
+  latestVersion Int             @default(1)
+  status        EventStatus     @default(DRAFT)
+  createdById   String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  publishedAt   DateTime?
+  createdBy     EventUser?      @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  versions      EventVersion[]
+  uploadLogs    UploadLog[]
+  publishLogs   PublishLog[]
+  auditLogs     EventAuditLog[]
 
   @@index([status, updatedAt])
   @@index([createdById, createdAt])
 }
 
 model EventVersion {
-  id           String     @id @default(cuid())
-  eventId      String
-  version      Int
-  folderName   String
-  entryFile    String     @default("index.html")
-  fileCount    Int
-  sizeBytes    BigInt
-  checksum     String
-  createdById  String?
-  createdAt    DateTime   @default(now())
-  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  createdBy    EventUser? @relation("EventVersionUploader", fields: [createdById], references: [id], onDelete: SetNull)
+  id          String     @id @default(cuid())
+  eventId     String
+  version     Int
+  folderName  String
+  entryFile   String     @default("index.html")
+  fileCount   Int
+  sizeBytes   BigInt
+  checksum    String
+  createdById String?
+  createdAt   DateTime   @default(now())
+  event       Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy   EventUser? @relation("EventVersionUploader", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@unique([eventId, version])
   @@index([eventId, createdAt])
 }
 
 model EventRefreshToken {
-  id         String    @id @default(cuid())
-  userId     String
-  tokenHash  String    @unique
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  createdAt  DateTime  @default(now())
-  user       EventUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      EventUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
 }
@@ -341,31 +342,31 @@ model EventAuditLog {
 }
 
 model UploadAsset {
-  id               String                  @id @default(cuid())
-  publicId         String                  @unique
-  name             String
-  details          String?
-  tags             String[]                @default([])
-  category         String
-  fileName         String
-  mimeType         String
-  fileSize         Int
-  fileData         Bytes
-  actionUrl        String?
-  isGlobal         Boolean                 @default(true)
-  isRoomBackground Boolean                 @default(false)
-  distribution     String                  @default("MANUAL")
-  storeVisible     Boolean                 @default(false)
-  coinPrice        BigInt?
-  minimumVipLevel  Int?
-  minimumRecharge  BigInt?
+  id                          String                  @id @default(cuid())
+  publicId                    String                  @unique
+  name                        String
+  details                     String?
+  tags                        String[]                @default([])
+  category                    String
+  fileName                    String
+  mimeType                    String
+  fileSize                    Int
+  fileData                    Bytes
+  actionUrl                   String?
+  isGlobal                    Boolean                 @default(true)
+  isRoomBackground            Boolean                 @default(false)
+  distribution                String                  @default("MANUAL")
+  storeVisible                Boolean                 @default(false)
+  coinPrice                   BigInt?
+  minimumVipLevel             Int?
+  minimumRecharge             BigInt?
   defaultGrantDurationMinutes Int?
-  active           Boolean                 @default(true)
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
-  assignments      UploadAssetAssignment[]
-  equippedBy       UserEquippedProp[]
-  purchases        PropPurchase[]
+  active                      Boolean                 @default(true)
+  createdAt                   DateTime                @default(now())
+  updatedAt                   DateTime                @updatedAt
+  assignments                 UploadAssetAssignment[]
+  equippedBy                  UserEquippedProp[]
+  purchases                   PropPurchase[]
 
   @@index([category, createdAt])
   @@index([isRoomBackground, createdAt])
@@ -392,28 +393,28 @@ model UploadAssetAssignment {
 }
 
 model UserEquippedProp {
-  userId    String
-  category  String
-  assetId   String
-  equippedAt DateTime @default(now())
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  asset     UploadAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  userId     String
+  category   String
+  assetId    String
+  equippedAt DateTime    @default(now())
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset      UploadAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   @@id([userId, category])
   @@index([assetId])
 }
 
 model PropPurchase {
-  id          String      @id @default(cuid())
-  publicId    String      @unique
-  userId      String
-  assetId     String?
+  id            String       @id @default(cuid())
+  publicId      String       @unique
+  userId        String
+  assetId       String?
   assetPublicId String
-  assetName   String
-  price       BigInt
-  purchasedAt DateTime    @default(now())
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  asset       UploadAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  assetName     String
+  price         BigInt
+  purchasedAt   DateTime     @default(now())
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset         UploadAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
 
   @@index([userId, purchasedAt])
   @@index([assetId, purchasedAt])

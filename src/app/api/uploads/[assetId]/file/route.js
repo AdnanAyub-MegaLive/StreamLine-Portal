@@ -10,6 +10,8 @@ const publicDisplayCategories = new Set([
   "FRAMES",
   "BADGES",
   "ROOM_BACKGROUNDS",
+  "ENTRANCES",
+  "RIDES",
 ]);
 
 export async function GET(request, { params }) {

@@ -6,6 +6,7 @@ import {
   requireMobileUser,
 } from "../../../../../../lib/mobile-api.js";
 import { emitToUser } from "../../../../../../lib/realtime.js";
+import { formatDateOnly } from "../../../../../../lib/date-only.js";
 
 export function OPTIONS() {
   return mobileOptions();
@@ -44,6 +45,9 @@ export async function POST(request, { params }) {
       addresseeId: user.publicId,
       addresseeName: user.name,
       addresseeProfileImage: user.profileImage ?? null,
+      addresseeGender: user.gender ?? null,
+      addresseeDob: formatDateOnly(user.dob),
+      addresseeIsVerified: Boolean(user.isVerified),
     });
     return mobileJson({
       success: true,

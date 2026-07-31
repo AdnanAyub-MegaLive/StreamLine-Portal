@@ -5,6 +5,7 @@ import { requestOrigin } from "./user-perks.js";
 export const equippablePropCategories = new Set([
   "FRAMES",
   "ENTRANCES",
+  "RIDES",
   "TAIL_LIGHTS",
   "BADGES",
   "CHAT_BOXES",

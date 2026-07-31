@@ -175,6 +175,7 @@ export async function POST(request) {
             profileImage: user.profileImage,
             gender: user.gender,
             dob: formatDateOnly(user.dob),
+            isVerified: Boolean(user.isVerified),
             role: user.role,
             status: user.status,
             vipLevel: user.vipLevel,

@@ -17,6 +17,7 @@ app.prepare().then(async()=>{
   const {reconcileExpiredAudioRoomRestrictions}=await import("./src/lib/audio-room-maintenance.js");
   const {createMessage,ensureWorldConversation,requireConversationParticipant}=await import("./src/lib/messaging.js");
   const {resolveUserPerks,socketOrigin}=await import("./src/lib/user-perks.js");
+  const {formatDateOnly}=await import("./src/lib/date-only.js");
   const httpServer=createServer((request,response)=>handle(request,response));
   const io=new Server(httpServer,{cors:{origin:process.env.MOBILE_APP_ORIGIN||"*",methods:["GET","POST"]}});
   const enrichPublicUsers=async(value,origin)=>{
@@ -31,14 +32,16 @@ app.prepare().then(async()=>{
     };
     collect(value);
     if(!ids.size)return value;
-    const users=await prisma.user.findMany({where:{publicId:{in:[...ids]},deletedAt:null},select:{id:true,publicId:true}});
+    const users=await prisma.user.findMany({where:{publicId:{in:[...ids]},deletedAt:null},select:{id:true,publicId:true,gender:true,dob:true,isVerified:true}});
+    const usersByPublicId=new Map(users.map((item)=>[item.publicId,item]));
     const perks=await resolveUserPerks(users,origin,["FRAMES","BADGES"]);
     const enrich=(node)=>{
       if(Array.isArray(node))return node.map(enrich);
       if(!node||typeof node!=="object")return node;
       const enriched=Object.fromEntries(Object.entries(node).map(([key,item])=>[key,enrich(item)]));
       const publicId=[node.userId,node.publicId,node.requesterId,node.occupantId,node.id].find((id)=>perks.has(id));
-      return publicId?{...enriched,frameUrl:perks.get(publicId)?.frameUrl??null,badgeUrl:perks.get(publicId)?.badgeUrl??null}:enriched;
+      const publicUser=usersByPublicId.get(publicId);
+      return publicId?{...enriched,gender:publicUser?.gender??null,dob:formatDateOnly(publicUser?.dob),isVerified:Boolean(publicUser?.isVerified),frameUrl:perks.get(publicId)?.frameUrl??null,badgeUrl:perks.get(publicId)?.badgeUrl??null}:enriched;
     };
     return enrich(value);
   };
@@ -165,7 +168,7 @@ app.prepare().then(async()=>{
     });
     for(const membership of conversationMemberships)socket.join(`conversation:${membership.conversation.publicId}`);
     const ban=await prisma.ban.findFirst({where:{userId:user.id,target:"USER",revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:new Date()}}]},orderBy:{createdAt:"desc"}});
-    socket.emit("session:status",{success:true,data:{sessionVersion:user.sessionVersion,forcedLogoutAt:user.forcedLogoutAt?.toISOString()??null,isBanned:Boolean(ban),banReason:ban?.reason??null,banExpiresAt:ban?.expiresAt?.toISOString()??null}});
+    socket.emit("session:status",{success:true,data:{sessionVersion:user.sessionVersion,forcedLogoutAt:user.forcedLogoutAt?.toISOString()??null,isVerified:Boolean(user.isVerified),isBanned:Boolean(ban),banReason:ban?.reason??null,banExpiresAt:ban?.expiresAt?.toISOString()??null}});
     socket.on("message:send",async({conversationId,body}={},ack=()=>{})=>{
       try{
         const id=String(conversationId??"");
@@ -190,7 +193,7 @@ app.prepare().then(async()=>{
     socket.on("audio-room:join",async({roomId}={},ack=()=>{})=>{
       const requestedRoomId=String(roomId??"");
       await reconcileExpiredAudioRoomRestrictions(requestedRoomId);
-      const room=await prisma.audioRoom.findUnique({where:{roomId:requestedRoomId},include:{owner:{select:{id:true,publicId:true,name:true,profileImage:true}}}});
+      const room=await prisma.audioRoom.findUnique({where:{roomId:requestedRoomId},include:{owner:{select:{id:true,publicId:true,name:true,profileImage:true,gender:true,dob:true,isVerified:true}}}});
       if(!room)return ack({success:false,error:{code:"ROOM_UNAVAILABLE"}});
       if(room.isBlocked)return ack({success:false,error:{code:"ROOM_BLOCKED",details:{reason:room.blockedReason,expiresAt:room.blockedUntil?.toISOString()??null}}});
       if(room.status==="TERMINATED")return ack({success:false,error:{code:"ROOM_TERMINATED",details:{expiresAt:room.terminatedUntil?.toISOString()??null}}});
@@ -203,7 +206,7 @@ app.prepare().then(async()=>{
       const joinedUserPerks=await resolveUserPerks([room.owner,user],connectionOrigin,["FRAMES","BADGES","ROOM_BACKGROUNDS","ENTRANCES"]);
       const roomPerks=joinedUserPerks.get(room.owner.publicId);
       const joiningPerks=joinedUserPerks.get(user.publicId);
-      ack({success:true,data:{roomId:room.roomId,title:room.title,participantCount,ownerId:room.owner.publicId,isOwner,roomBackgroundUrl:roomPerks?.roomBackgroundUrl??null,owner:{publicId:room.owner.publicId,name:room.owner.name,profileImage:room.owner.profileImage,frameUrl:roomPerks?.frameUrl??null,badgeUrl:roomPerks?.badgeUrl??null}}});
+      ack({success:true,data:{roomId:room.roomId,title:room.title,participantCount,ownerId:room.owner.publicId,isOwner,roomBackgroundUrl:roomPerks?.roomBackgroundUrl??null,owner:{publicId:room.owner.publicId,name:room.owner.name,profileImage:room.owner.profileImage,gender:room.owner.gender??null,dob:formatDateOnly(room.owner.dob),isVerified:Boolean(room.owner.isVerified),frameUrl:roomPerks?.frameUrl??null,badgeUrl:roomPerks?.badgeUrl??null}}});
       io.to(`audio-room:${room.roomId}`).emit("audio-room:entrance",{
         success:true,
         data:{
@@ -211,11 +214,14 @@ app.prepare().then(async()=>{
           userId,
           name:user.name,
           profileImage:user.profileImage??null,
+          gender:user.gender??null,
+          isVerified:Boolean(user.isVerified),
+          dob:formatDateOnly(user.dob),
           entranceUrl:joiningPerks?.entranceUrl??null,
         },
       });
       if(!isOwner){
-        io.to(`user:${room.owner.publicId}`).emit("audio-room:seat-sync-request",{success:true,data:{roomId:room.roomId,requesterId:userId,requesterName:user.name,requesterProfileImage:user.profileImage??null,requesterFrameUrl:joiningPerks?.frameUrl??null,requesterBadgeUrl:joiningPerks?.badgeUrl??null,reason:"VIEWER_JOINED"}});
+        io.to(`user:${room.owner.publicId}`).emit("audio-room:seat-sync-request",{success:true,data:{roomId:room.roomId,requesterId:userId,requesterName:user.name,requesterProfileImage:user.profileImage??null,requesterGender:user.gender??null,requesterDob:formatDateOnly(user.dob),requesterIsVerified:Boolean(user.isVerified),requesterFrameUrl:joiningPerks?.frameUrl??null,requesterBadgeUrl:joiningPerks?.badgeUrl??null,reason:"VIEWER_JOINED"}});
       }
     });
     socket.on("audio-room:seat-update",async({roomId,seatRows,notes}={},ack=()=>{})=>{
@@ -243,7 +249,7 @@ app.prepare().then(async()=>{
         if(!socket.rooms.has(`audio-room:${id}`))return ack({success:false,error:{code:"JOIN_ROOM_FIRST"}});
         const requestId=randomUUID();
         const requesterPerks=(await resolveUserPerks([user],connectionOrigin,["FRAMES","BADGES"])).get(user.publicId);
-        const data={requestId,roomId:id,requesterId:userId,requesterName:user.name,requesterProfileImage:user.profileImage??null,requesterFrameUrl:requesterPerks?.frameUrl??null,requesterBadgeUrl:requesterPerks?.badgeUrl??null,seatId:seatId??null,note:typeof note==="string"?note.slice(0,500):null,requestedAt:new Date().toISOString()};
+        const data={requestId,roomId:id,requesterId:userId,requesterName:user.name,requesterProfileImage:user.profileImage??null,requesterGender:user.gender??null,requesterDob:formatDateOnly(user.dob),requesterIsVerified:Boolean(user.isVerified),requesterFrameUrl:requesterPerks?.frameUrl??null,requesterBadgeUrl:requesterPerks?.badgeUrl??null,seatId:seatId??null,note:typeof note==="string"?note.slice(0,500):null,requestedAt:new Date().toISOString()};
         io.to(`user:${room.owner.publicId}`).emit("audio-room:seat-request",{success:true,data});
         ack({success:true,data:{requestId,roomId:id,status:"PENDING"}});
       }catch(error){

@@ -12,7 +12,7 @@ authenticated user. Assets assigned to other users are never included.
 
 Optional filters:
 
-- `category=BANNERS|FRAMES|ENTRANCES|TAIL_LIGHTS|GIFTS|BADGES|CHAT_BOXES|ROOM_BACKGROUNDS`
+- `category=BANNERS|FRAMES|ENTRANCES|RIDES|TAIL_LIGHTS|GIFTS|BADGES|CHAT_BOXES|ROOM_BACKGROUNDS`
 - `roomBackground=true` returns only assets enabled for use as room backgrounds.
 
 ## Marketing banners

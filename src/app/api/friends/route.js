@@ -9,6 +9,7 @@ import {
   requestOrigin,
   resolveUserPerks,
 } from "../../../lib/user-perks.js";
+import { formatDateOnly } from "../../../lib/date-only.js";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,9 @@ export async function GET(request) {
             publicId: true,
             name: true,
             profileImage: true,
+            gender: true,
+            dob: true,
+            isVerified: true,
             deletedAt: true,
           },
         },
@@ -40,6 +44,9 @@ export async function GET(request) {
             publicId: true,
             name: true,
             profileImage: true,
+            gender: true,
+            dob: true,
+            isVerified: true,
             deletedAt: true,
           },
         },
@@ -65,6 +72,9 @@ export async function GET(request) {
           publicId: friend.publicId,
           name: friend.name,
           profileImage: friend.profileImage,
+          gender: friend.gender ?? null,
+          dob: formatDateOnly(friend.dob),
+          isVerified: Boolean(friend.isVerified),
           frameUrl: perks.get(friend.publicId)?.frameUrl ?? null,
           badgeUrl: perks.get(friend.publicId)?.badgeUrl ?? null,
         })),

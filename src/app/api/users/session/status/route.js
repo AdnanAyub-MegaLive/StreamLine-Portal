@@ -82,6 +82,7 @@ export async function GET(request) {
         specialIdExpiresAt: identity.specialIdExpiresAt?.toISOString() ?? null,
         gender: user.gender,
         dob: formatDateOnly(user.dob),
+        isVerified: Boolean(user.isVerified),
       },
     });
   } catch {

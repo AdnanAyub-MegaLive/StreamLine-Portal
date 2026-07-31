@@ -5,6 +5,7 @@ import {
   requestOrigin,
   resolveUserPerks,
 } from "../../../../lib/user-perks";
+import { formatDateOnly } from "../../../../lib/date-only";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.MOBILE_APP_ORIGIN || "*",
@@ -77,6 +78,9 @@ export async function GET(request) {
             publicId: true,
             name: true,
             profileImage: true,
+            gender: true,
+            dob: true,
+            isVerified: true,
           },
         },
       },
@@ -102,6 +106,9 @@ export async function GET(request) {
             id: room.owner.publicId,
             name: room.owner.name,
             profileImage: room.owner.profileImage,
+            gender: room.owner.gender ?? null,
+            dob: formatDateOnly(room.owner.dob),
+            isVerified: Boolean(room.owner.isVerified),
             frameUrl: perks.get(room.owner.publicId)?.frameUrl ?? null,
             badgeUrl: perks.get(room.owner.publicId)?.badgeUrl ?? null,
           },

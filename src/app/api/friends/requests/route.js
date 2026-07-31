@@ -14,6 +14,7 @@ import {
   requestOrigin,
   resolveUserPerks,
 } from "../../../../lib/user-perks.js";
+import { formatDateOnly } from "../../../../lib/date-only.js";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,9 @@ function incomingPayload(record, perks) {
     requesterId: record.requester.publicId,
     requesterName: record.requester.name,
     requesterProfileImage: record.requester.profileImage,
+    requesterGender: record.requester.gender ?? null,
+    requesterDob: formatDateOnly(record.requester.dob),
+    requesterIsVerified: Boolean(record.requester.isVerified),
     requesterFrameUrl: perks?.frameUrl ?? null,
     requesterBadgeUrl: perks?.badgeUrl ?? null,
     createdAt: record.createdAt.toISOString(),
@@ -50,6 +54,9 @@ export async function GET(request) {
             publicId: true,
             name: true,
             profileImage: true,
+            gender: true,
+            dob: true,
+            isVerified: true,
           },
         },
       },
@@ -94,6 +101,9 @@ export async function POST(request) {
         publicId: true,
         name: true,
         profileImage: true,
+        gender: true,
+        dob: true,
+        isVerified: true,
       },
     });
     if (!target) throw new Error("USER_NOT_FOUND");
@@ -103,10 +113,10 @@ export async function POST(request) {
         where: { pairKey },
         include: {
           requester: {
-            select: { id: true, publicId: true, name: true, profileImage: true },
+            select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true },
           },
           addressee: {
-            select: { id: true, publicId: true, name: true, profileImage: true },
+            select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true },
           },
         },
       });
@@ -121,10 +131,10 @@ export async function POST(request) {
             data: { status: "ACCEPTED", respondedAt: new Date() },
             include: {
               requester: {
-                select: { id: true, publicId: true, name: true, profileImage: true },
+                select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true },
               },
               addressee: {
-                select: { id: true, publicId: true, name: true, profileImage: true },
+                select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true },
               },
             },
           }),
@@ -144,10 +154,10 @@ export async function POST(request) {
             },
             include: {
               requester: {
-                select: { id: true, publicId: true, name: true, profileImage: true },
+                select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true },
               },
               addressee: {
-                select: { id: true, publicId: true, name: true, profileImage: true },
+                select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true },
               },
             },
           }),
@@ -164,10 +174,10 @@ export async function POST(request) {
           },
           include: {
             requester: {
-              select: { id: true, publicId: true, name: true, profileImage: true },
+              select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true },
             },
             addressee: {
-              select: { id: true, publicId: true, name: true, profileImage: true },
+              select: { id: true, publicId: true, name: true, profileImage: true, gender: true, dob: true, isVerified: true },
             },
           },
         }),
@@ -186,6 +196,9 @@ export async function POST(request) {
         addresseeId: user.publicId,
         addresseeName: user.name,
         addresseeProfileImage: user.profileImage ?? null,
+        addresseeGender: user.gender ?? null,
+        addresseeDob: formatDateOnly(user.dob),
+        addresseeIsVerified: Boolean(user.isVerified),
       });
     } else {
       emitToUser(target.publicId, "friend:request", {
@@ -193,6 +206,9 @@ export async function POST(request) {
         requesterId: requester.publicId,
         requesterName: requester.name,
         requesterProfileImage: requester.profileImage,
+        requesterGender: requester.gender ?? null,
+        requesterDob: formatDateOnly(requester.dob),
+        requesterIsVerified: Boolean(requester.isVerified),
         requesterFrameUrl: perks.get(requester.publicId)?.frameUrl ?? null,
         requesterBadgeUrl: perks.get(requester.publicId)?.badgeUrl ?? null,
         createdAt: result.request.createdAt.toISOString(),

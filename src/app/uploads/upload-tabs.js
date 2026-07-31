@@ -7,7 +7,8 @@ import { durationCalculation } from "../utils/duration";
 const tabs = [
   "Banners",
   "Frames",
-  "Entrances",
+  "Entrance Strip",
+  "Rides",
   "Tail-lights",
   "Gifts",
   "Badges",
@@ -17,7 +18,8 @@ const tabs = [
 const categories = {
   Banners: "BANNERS",
   Frames: "FRAMES",
-  Entrances: "ENTRANCES",
+  "Entrance Strip": "ENTRANCES",
+  Rides: "RIDES",
   "Tail-lights": "TAIL_LIGHTS",
   Gifts: "GIFTS",
   Badges: "BADGES",
@@ -1172,7 +1174,8 @@ function singular(value) {
   return {
     Banners: "Banner",
     Frames: "Frame",
-    Entrances: "Entrance",
+    "Entrance Strip": "Entrance Strip",
+    Rides: "Ride",
     "Tail-lights": "Tail-light",
     Gifts: "Gift",
     Badges: "Badge",

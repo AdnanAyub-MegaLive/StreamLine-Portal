@@ -38,7 +38,15 @@ export async function GET(request, { params }) {
       where: { conversationId: membership.conversationId },
       include: {
         sender: {
-          select: { id: true, publicId: true, name: true, profileImage: true },
+          select: {
+            id: true,
+            publicId: true,
+            name: true,
+            profileImage: true,
+            gender: true,
+            dob: true,
+            isVerified: true,
+          },
         },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],

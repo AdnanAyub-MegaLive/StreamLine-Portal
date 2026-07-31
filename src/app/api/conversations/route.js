@@ -10,6 +10,7 @@ import {
   requestOrigin,
   resolveUserPerks,
 } from "../../../lib/user-perks";
+import { formatDateOnly } from "../../../lib/date-only";
 
 export const dynamic = "force-dynamic";
 export function OPTIONS() {
@@ -46,6 +47,9 @@ async function conversationPayload(conversation, user, perks) {
             id: other.publicId,
             name: other.name,
             profileImage: other.profileImage,
+            gender: other.gender ?? null,
+            dob: formatDateOnly(other.dob),
+            isVerified: Boolean(other.isVerified),
             frameUrl: perks.get(other.publicId)?.frameUrl ?? null,
             badgeUrl: perks.get(other.publicId)?.badgeUrl ?? null,
           }
@@ -67,7 +71,15 @@ const conversationInclude = {
   participants: {
     include: {
       user: {
-        select: { id: true, publicId: true, name: true, profileImage: true },
+        select: {
+          id: true,
+          publicId: true,
+          name: true,
+          profileImage: true,
+          gender: true,
+          dob: true,
+          isVerified: true,
+        },
       },
     },
   },
