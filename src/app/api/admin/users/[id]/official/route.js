@@ -56,7 +56,7 @@ export async function PATCH(request, { params }) {
   const { id } = await params;
   const target = await prisma.user.findFirst({
     where: { deletedAt: null, OR: [{ id }, { publicId: id }] },
-    select: { id: true, publicId: true, isOfficial: true },
+    select: { id: true, publicId: true, isOfficial: true, appRoles: true },
   });
   if (!target)
     return json(
@@ -70,7 +70,16 @@ export async function PATCH(request, { params }) {
   const user = await prisma.$transaction(async (tx) => {
     const updated = await tx.user.update({
       where: { id: target.id },
-      data: { isOfficial: body.official },
+      data: {
+        isOfficial: body.official,
+        appRoles: {
+          set: body.official
+            ? [...new Set([...target.appRoles, "OFFICIAL"])]
+            : target.appRoles.filter((role) => role !== "OFFICIAL").length
+              ? target.appRoles.filter((role) => role !== "OFFICIAL")
+              : ["LISTENER"],
+        },
+      },
       select: { publicId: true, name: true, isOfficial: true, updatedAt: true },
     });
     await tx.auditLog.create({

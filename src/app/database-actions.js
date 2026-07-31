@@ -13,6 +13,7 @@ import {
 } from "../lib/special-id";
 import { reconcileExpiredAudioRoomRestrictions } from "../lib/audio-room-maintenance";
 import { syncProgressionProps } from "../lib/props-store";
+import { normalizeApplicationRoles, primaryLegacyRole } from "../lib/user-roles";
 
 async function requireAdmin() {
   const session = await auth();
@@ -69,7 +70,7 @@ export async function updateUserAccount(publicId, changes) {
   const admin = await requireAdmin();
   const currentUser = await prisma.user.findUniqueOrThrow({
     where: { publicId },
-    select: { agencyId: true },
+    select: { agencyId: true, role: true, appRoles: true },
   });
   const data = {};
   if (changes.name !== undefined) data.name = changes.name;
@@ -81,10 +82,23 @@ export async function updateUserAccount(publicId, changes) {
     if (data.role === "HOST" && !currentUser.agencyId)
       throw new Error("HOST_AGENCY_REQUIRED");
   }
+  if (changes.roles !== undefined) {
+    const roles = normalizeApplicationRoles(changes.roles);
+    if (roles.includes("HOST") && !currentUser.agencyId)
+      throw new Error("HOST_AGENCY_REQUIRED");
+    data.appRoles = { set: roles };
+    data.role = primaryLegacyRole(roles, currentUser.role);
+    data.isOfficial = roles.includes("OFFICIAL");
+  }
   if (changes.status !== undefined) data.status = enumValue(changes.status);
   if (changes.vipLevel !== undefined) data.vipLevel = Number(changes.vipLevel);
-  if (changes.isOfficial !== undefined)
+  if (changes.isOfficial !== undefined) {
     data.isOfficial = Boolean(changes.isOfficial);
+    const roles = new Set(currentUser.appRoles);
+    if (data.isOfficial) roles.add("OFFICIAL");
+    else roles.delete("OFFICIAL");
+    data.appRoles = { set: normalizeApplicationRoles([...roles]) };
+  }
   await prisma.user.update({ where: { publicId }, data });
   let action = "UPDATE_USER";
   let description = `${admin.name} updated user ${publicId}`;
@@ -94,6 +108,9 @@ export async function updateUserAccount(publicId, changes) {
       Number(changes.vipLevel) > 0
         ? `${admin.name} granted VIP ${changes.vipLevel} to user ${publicId}`
         : `${admin.name} removed VIP access from user ${publicId}`;
+  } else if (changes.roles !== undefined) {
+    action = "CHANGE_USER_ROLES";
+    description = `${admin.name} changed the roles of user ${publicId} to ${normalizeApplicationRoles(changes.roles).join(", ")}`;
   } else if (changes.role !== undefined) {
     action = "CHANGE_USER_ROLE";
     description = `${admin.name} changed the role of user ${publicId} to ${changes.role}`;

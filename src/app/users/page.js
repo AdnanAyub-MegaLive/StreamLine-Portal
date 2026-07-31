@@ -91,6 +91,8 @@ export default async function UsersPage() {
         .map((part) => part[0])
         .join(""),
       role: display(user.role),
+      roles: user.appRoles.map(display),
+      isOfficial: Boolean(user.isOfficial),
       status: display(user.status),
       joined: user.createdAt.toLocaleDateString("en-US", {
         month: "short",

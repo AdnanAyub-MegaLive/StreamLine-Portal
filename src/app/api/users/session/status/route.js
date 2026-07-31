@@ -84,6 +84,8 @@ export async function GET(request) {
         dob: formatDateOnly(user.dob),
         isVerified: Boolean(user.isVerified),
         isOfficial: Boolean(user.isOfficial),
+        role: user.role,
+        roles: user.appRoles,
       },
     });
   } catch {

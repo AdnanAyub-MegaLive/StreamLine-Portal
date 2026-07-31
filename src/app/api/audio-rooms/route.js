@@ -69,7 +69,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const user = await authenticatedUser(request);
-    if (user.role !== "HOST" || !user.agencyId)
+    if (!user.appRoles.includes("HOST") || !user.agencyId)
       return json(
         {
           success: false,

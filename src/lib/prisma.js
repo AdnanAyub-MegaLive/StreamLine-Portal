@@ -3,7 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis;
 const prismaSchemaVersion = "2026-07-31-user-official-v18";
-const requiredUserFields = ["sessionVersion", "forcedLogoutAt", "passwordHash", "deletedAt", "totalTopUp", "gender", "dob", "isVerified", "isOfficial", "agencyId", "hostSalaryCoinBalance"];
+const requiredUserFields = ["sessionVersion", "forcedLogoutAt", "passwordHash", "deletedAt", "totalTopUp", "gender", "dob", "isVerified", "isOfficial", "appRoles", "agencyId", "hostSalaryCoinBalance"];
 
 const createPrismaClient = () => new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),

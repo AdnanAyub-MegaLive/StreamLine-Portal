@@ -78,7 +78,7 @@ export default function ProfileManager({ profile, type }) {
                   ["Country", data.country],
                   ["Gender", data.gender],
                   ["Date of birth", data.dob],
-                  ["Role", data.role],
+                  ["Roles", (data.roles ?? [data.role]).join(", ")],
                   ["Status", data.status],
                   [
                     "Official account",
@@ -148,7 +148,13 @@ export default function ProfileManager({ profile, type }) {
                     setActionError("");
                     try {
                       await updateUserAccount(data.id, { isOfficial: next });
-                      setData((current) => ({ ...current, isOfficial: next }));
+                      setData((current) => ({
+                        ...current,
+                        isOfficial: next,
+                        roles: next
+                          ? [...new Set([...(current.roles ?? [current.role]), "Official"])]
+                          : (current.roles ?? [current.role]).filter((role) => role !== "Official"),
+                      }));
                     } catch {
                       setActionError("Unable to update the official-account badge.");
                     } finally {
@@ -339,6 +345,8 @@ function Action({ text, onClick, disabled = false }) {
 }
 
 function ManageModal({ type, profile, isTalent, onClose, onSave }) {
+  const roleChoices = ["Listener", "Sender", "Creator", "Host", "Moderator", "Official", "BD", "Admin", "Junior Admin", "Senior Admin", "Super Admin", "Country Head"];
+  const [roles, setRoles] = useState(profile.roles?.length ? profile.roles : [profile.role]);
   const [value, setValue] = useState(
     type === "vip"
       ? profile.vipLevel
@@ -355,7 +363,10 @@ function ManageModal({ type, profile, isTalent, onClose, onSave }) {
     const form = new FormData(event.currentTarget);
     const auditReason = String(form.get("reason") || "");
     if (type === "vip") onSave({ vipLevel: Number(value), auditReason });
-    else if (type === "role") onSave({ role: value, auditReason });
+    else if (type === "role") {
+      if (!roles.length) return;
+      onSave({ roles, isOfficial: roles.includes("Official"), auditReason });
+    }
     else if (type === "status") onSave({ status: value, auditReason });
     else if (type === "verification")
       onSave({ verification: value, auditReason });
@@ -433,7 +444,22 @@ function ManageModal({ type, profile, isTalent, onClose, onSave }) {
           ) : (
             <>
               <label className="mb-2 block text-xs font-bold">New value</label>
-              {type === "salary" ? (
+              {type === "role" ? (
+                <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
+                  {roleChoices.map((role) => (
+                    <label key={role} className="flex items-center gap-2 rounded-lg border border-[#dce8e5] px-3 py-2.5 text-xs font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={roles.includes(role)}
+                        onChange={() => setRoles((current) => current.includes(role) ? current.filter((item) => item !== role) : [...current, role])}
+                        className="accent-[#087f74]"
+                      />
+                      {role}
+                    </label>
+                  ))}
+                  {!roles.length && <p className="text-[10px] font-semibold text-red-600">Select at least one role.</p>}
+                </div>
+              ) : type === "salary" ? (
                 <input
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
@@ -450,9 +476,7 @@ function ManageModal({ type, profile, isTalent, onClose, onSave }) {
                 >
                   {(type === "vip"
                     ? [0, 1, 2, 3, 4, 5]
-                    : type === "role"
-                      ? ["Listener", "Sender", "Creator", "Host", "Moderator"]
-                      : type === "verification"
+                    : type === "verification"
                         ? ["Pending", "Review", "Verified", "Rejected"]
                         : ["Active", "Pending", "Suspended", "Banned"]
                   ).map((option) => (

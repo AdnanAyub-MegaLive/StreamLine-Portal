@@ -99,6 +99,7 @@ export default async function UserProfilePage({ params }) {
     gender: user.gender ? display(user.gender) : "Not set",
     dob: user.dob?.toISOString().slice(0, 10) ?? "Not set",
     role: display(user.role),
+    roles: user.appRoles.map(display),
     status: display(user.status),
     vipLevel: user.vipLevel,
     isOfficial: Boolean(user.isOfficial),

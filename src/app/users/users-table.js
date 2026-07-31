@@ -11,6 +11,11 @@ import {
 import usePortalData from "../hooks/use-portal-data";
 import DurationPicker from "../components/duration-picker";
 
+const userRoleChoices = [
+  "Listener", "Sender", "Creator", "Host", "Moderator", "Official",
+  "BD", "Admin", "Junior Admin", "Senior Admin", "Super Admin", "Country Head",
+];
+
 const statusStyles = {
   Active: "bg-emerald-50 text-emerald-700",
   Pending: "bg-amber-50 text-amber-700",
@@ -217,19 +222,20 @@ export default function UsersTable({ initialData, specialIdCatalog }) {
         Showing {filtered.length} of {users.length} users
       </div>
       {modal?.type === "role" && (
-        <ChoiceModal
+        <RoleModal
           title="Adjust user role"
           user={modal.user}
-          choices={["Listener", "Sender", "Creator", "Host", "Moderator"]}
-          initial={modal.user.role}
-          reasonLabel="Reason for role change"
           onClose={() => setModal(null)}
-          onSave={async (value, reason) => {
+          onSave={async (roles, reason) => {
             await updateUserAccount(modal.user.id, {
-              role: value,
+              roles,
               auditReason: reason,
             });
-            saveUser(modal.user.id, { role: value });
+            saveUser(modal.user.id, {
+              roles,
+              role: roles.join(", "),
+              isOfficial: roles.includes("Official"),
+            });
             setModal(null);
           }}
         />
@@ -343,6 +349,44 @@ function ChoiceModal({
         </select>
         <Reason label={reasonLabel} />
         <Actions onClose={onClose} confirm="Save changes" />
+      </form>
+    </Modal>
+  );
+}
+
+function RoleModal({ title, user, onClose, onSave }) {
+  const [roles, setRoles] = useState(
+    user.roles?.length ? user.roles : [user.role || "Listener"],
+  );
+  const toggle = (role) =>
+    setRoles((current) =>
+      current.includes(role)
+        ? current.filter((item) => item !== role)
+        : [...current, role],
+    );
+  return (
+    <Modal title={title} subtitle={`${user.name} · ${user.id}`} onClose={onClose}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!roles.length) return;
+          onSave(roles, String(new FormData(event.currentTarget).get("reason")));
+        }}
+      >
+        <p className="mb-3 text-[11px] text-[#68807b]">
+          Select every role this user holds. Permissions will be connected to these roles later.
+        </p>
+        <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
+          {userRoleChoices.map((role) => (
+            <label key={role} className="flex items-center gap-2 rounded-lg border border-[#dce8e5] px-3 py-2.5 text-xs font-semibold">
+              <input type="checkbox" checked={roles.includes(role)} onChange={() => toggle(role)} className="accent-[#087f74]" />
+              {role}
+            </label>
+          ))}
+        </div>
+        {!roles.length && <p className="mt-2 text-[10px] font-semibold text-red-600">Select at least one role.</p>}
+        <Reason label="Reason for role change" />
+        <Actions onClose={onClose} confirm="Save roles" />
       </form>
     </Modal>
   );

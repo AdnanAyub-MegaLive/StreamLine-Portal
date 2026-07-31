@@ -178,6 +178,7 @@ export async function POST(request) {
             isVerified: Boolean(user.isVerified),
             isOfficial: Boolean(user.isOfficial),
             role: user.role,
+            roles: user.appRoles,
             status: user.status,
             vipLevel: user.vipLevel,
             createdAt: user.createdAt.toISOString(),

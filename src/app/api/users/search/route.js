@@ -43,6 +43,7 @@ export async function GET(request) {
         dob: true,
         isVerified: true,
         isOfficial: true,
+        appRoles: true,
       },
       orderBy: [{ name: "asc" }, { publicId: "asc" }],
       take: 20,
