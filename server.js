@@ -203,7 +203,7 @@ app.prepare().then(async()=>{
       const participantCount=io.sockets.adapter.rooms.get(`audio-room:${room.roomId}`)?.size??1;
       await prisma.audioRoom.update({where:{id:room.id},data:{participantCount}});
       const isOwner=room.ownerId===user.id;
-      const joinedUserPerks=await resolveUserPerks([room.owner,user],connectionOrigin,["FRAMES","BADGES","ROOM_BACKGROUNDS","ENTRANCES","TAIL_LIGHTS"]);
+      const joinedUserPerks=await resolveUserPerks([room.owner,user],connectionOrigin,["FRAMES","BADGES","ROOM_BACKGROUNDS","ENTRANCES","TAIL_LIGHTS","RIDES"]);
       const roomPerks=joinedUserPerks.get(room.owner.publicId);
       const joiningPerks=joinedUserPerks.get(user.publicId);
       ack({success:true,data:{roomId:room.roomId,title:room.title,participantCount,ownerId:room.owner.publicId,isOwner,roomBackgroundUrl:roomPerks?.roomBackgroundUrl??null,owner:{publicId:room.owner.publicId,name:room.owner.name,profileImage:room.owner.profileImage,gender:room.owner.gender??null,dob:formatDateOnly(room.owner.dob),isVerified:Boolean(room.owner.isVerified),isOfficial:Boolean(room.owner.isOfficial),frameUrl:roomPerks?.frameUrl??null,badgeUrl:roomPerks?.badgeUrl??null}}});
