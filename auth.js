@@ -18,7 +18,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           email === process.env.ADMIN_EMAIL?.toLowerCase() &&
           password === process.env.ADMIN_PASSWORD
         ) {
-          return { id: "admin", name: "Platform Admin", email };
+          return { id: "admin", name: "Manager", email };
         }
 
         return null;

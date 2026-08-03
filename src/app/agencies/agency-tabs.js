@@ -600,8 +600,8 @@ function ApplicationReviewModal({ application, onClose, onReviewed }) {
               />
             </div>
             <p className="mt-3 text-[9px] leading-4 text-[#80918d]">
-              Click either image to inspect the original document in a new tab.
-              CNIC media is protected by administrator authentication.
+              When identity documents are supplied, they can be inspected in a
+              new tab and remain protected by administrator authentication.
             </p>
           </div>
         </div>
@@ -712,6 +712,12 @@ function Detail({ label, value, mono }) {
   );
 }
 function DocumentPreview({ url, label }) {
+  if (!url)
+    return (
+      <div className="grid aspect-[1.58/1] place-items-center rounded-xl border border-dashed border-[#d6e4e1] bg-[#f7faf9] px-4 text-center text-[10px] font-semibold text-[#82938f]">
+        Not provided by this application flow
+      </div>
+    );
   return (
     <a href={url} target="_blank" rel="noreferrer" className="group block">
       <div className="relative aspect-[1.58/1] overflow-hidden rounded-xl border border-[#d6e4e1] bg-[#edf4f2]">
@@ -731,6 +737,8 @@ function DocumentPreview({ url, label }) {
 }
 
 function CnicPreview({ url, label }) {
+  if (!url)
+    return <span className="text-[9px] font-semibold text-[#82938f]">Not provided</span>;
   return (
     <a
       href={url}

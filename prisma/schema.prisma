@@ -484,10 +484,10 @@ model AgencyApplication {
   whatsapp        String
   bdCode          String
   country         String?
-  cnicFrontData   Bytes
-  cnicFrontMime   String
-  cnicBackData    Bytes
-  cnicBackMime    String
+  cnicFrontData   Bytes?
+  cnicFrontMime   String?
+  cnicBackData    Bytes?
+  cnicBackMime    String?
   status          String    @default("PENDING")
   reviewedById    String?
   agencyId        String?   @unique
@@ -502,6 +502,7 @@ model AgencyApplication {
 
   @@index([status, createdAt])
   @@index([userId])
+  @@index([userId, bdCode, status])
   @@index([reviewedById, reviewedAt])
 }
 

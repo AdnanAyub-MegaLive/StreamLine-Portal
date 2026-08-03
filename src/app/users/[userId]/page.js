@@ -4,6 +4,7 @@ import { auth } from "../../../../auth";
 import ProfileManager from "../../components/profile-manager";
 import { prisma } from "../../../lib/prisma";
 import MessageHistory from "./message-history";
+import PortalSidebar from "../../components/portal-sidebar";
 
 export default async function UserProfilePage({ params }) {
   const session = await auth();
@@ -192,6 +193,8 @@ export default async function UserProfilePage({ params }) {
   }));
   return (
     <main className="min-h-screen bg-[#f4f8f7] text-[#142c2a]">
+      <PortalSidebar />
+      <section className="lg:pl-64">
       <header className="border-b border-[#dfe9e7] bg-white px-6 py-5 md:px-10">
         <div className="mx-auto max-w-7xl">
           <Link href="/users" className="text-xs font-bold text-[#087f74]">
@@ -230,6 +233,7 @@ export default async function UserProfilePage({ params }) {
           notifications={notificationHistory}
         />
       </div>
+      </section>
     </main>
   );
 }

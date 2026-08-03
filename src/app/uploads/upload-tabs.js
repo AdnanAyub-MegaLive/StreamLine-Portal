@@ -137,10 +137,11 @@ export default function UploadTabs({ initialUploads, users }) {
         )}
         {records.length ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {records.map((item) => (
+            {records.map((item, index) => (
               <PreviewCard
                 key={item.id}
                 item={item}
+                eager={index < 4}
                 onManage={() => {
                   setError("");
                   setManagedAsset(item);
@@ -194,13 +195,18 @@ export default function UploadTabs({ initialUploads, users }) {
   );
 }
 
-function PreviewCard({ item, onManage, onDelete }) {
+function PreviewCard({ item, eager, onManage, onDelete }) {
   const activeGrants = item.assignedUsers.filter((user) => !user.isExpired);
   const isBanner = item.category === "BANNERS";
   return (
     <article className="group overflow-hidden rounded-2xl border border-[#dce8e5] bg-white shadow-[0_7px_22px_rgba(15,65,60,.04)]">
       <div className="aspect-video bg-[#edf4f2]">
-        <MediaPreview url={item.url} type={item.mimeType} name={item.name} />
+        <MediaPreview
+          url={item.url}
+          type={item.mimeType}
+          name={item.name}
+          eager={eager}
+        />
       </div>
       <div className="p-4">
         <div className="min-w-0">
@@ -1124,7 +1130,7 @@ function EmptyState({ active }) {
     </div>
   );
 }
-function MediaPreview({ url, type, name }) {
+function MediaPreview({ url, type, name, eager = false }) {
   return type?.startsWith("video/") ? (
     <video
       src={url}
@@ -1140,6 +1146,7 @@ function MediaPreview({ url, type, name }) {
         alt={`${name} preview`}
         fill
         unoptimized
+        loading={eager ? "eager" : "lazy"}
         className="object-contain"
       />
     </span>

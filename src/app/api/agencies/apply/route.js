@@ -1,8 +1,6 @@
 import { prisma } from "../../../../lib/prisma";
 import mobileSession from "../../../../lib/mobile-session.cjs";
 
-const maxImageSize = 5 * 1024 * 1024;
-const allowedImageTypes = new Set(["image/jpeg", "image/png"]);
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.MOBILE_APP_ORIGIN || "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -22,39 +20,10 @@ function error(code, message, status, fields) {
   );
 }
 
-function text(form, key, maxLength) {
-  const value = String(form.get(key) ?? "").trim();
+function text(payload, key, maxLength) {
+  const raw = typeof payload?.get === "function" ? payload.get(key) : payload?.[key];
+  const value = String(raw ?? "").trim();
   return value && value.length <= maxLength ? value : null;
-}
-
-function validEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-async function imageData(form, key) {
-  const file = form.get(key);
-  if (!(file instanceof File) || !file.size)
-    return { error: `${key} is required.` };
-  if (!allowedImageTypes.has(file.type))
-    return { error: `${key} must be a JPEG or PNG image.` };
-  if (file.size > maxImageSize)
-    return { tooLarge: true, error: `${key} cannot exceed 5 MB.` };
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const isJpeg =
-    file.type === "image/jpeg" &&
-    bytes.length >= 3 &&
-    bytes[0] === 0xff &&
-    bytes[1] === 0xd8 &&
-    bytes[2] === 0xff;
-  const isPng =
-    file.type === "image/png" &&
-    bytes.length >= 8 &&
-    bytes
-      .subarray(0, 8)
-      .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-  if (!isJpeg && !isPng)
-    return { error: `${key} content does not match its image type.` };
-  return { bytes, mime: file.type };
 }
 
 async function authenticatedUser(request) {
@@ -90,24 +59,23 @@ export async function POST(request) {
     );
   }
 
-  let form;
+  let payload;
   try {
-    form = await request.formData();
+    payload = request.headers.get("content-type")?.includes("application/json")
+      ? await request.json()
+      : await request.formData();
   } catch {
     return error(
       "VALIDATION",
-      "Request body must be multipart/form-data.",
+      "Request body must be JSON or multipart/form-data.",
       422,
     );
   }
 
-  const agencyName = text(form, "agencyName", 120);
-  const whatsapp = text(form, "whatsapp", 40);
-  const bdCode = text(form, "bdCode", 50);
-  const suppliedEmail = String(form.get("email") ?? "")
-    .trim()
-    .toLowerCase();
-  const email = user.email?.trim().toLowerCase() || suppliedEmail;
+  const agencyName = text(payload, "agencyName", 120);
+  const whatsapp = text(payload, "whatsapp", 40);
+  const bdCode = text(payload, "bdCode", 50);
+  const email = user.email?.trim().toLowerCase() || null;
   const fields = {};
   if (!agencyName)
     fields.agencyName =
@@ -117,21 +85,6 @@ export async function POST(request) {
       "WhatsApp number is required and cannot exceed 40 characters.";
   if (!bdCode)
     fields.bdCode = "BD code is required and cannot exceed 50 characters.";
-  if (!email || !validEmail(email))
-    fields.email = "A valid email address is required.";
-
-  const [cnicFront, cnicBack] = await Promise.all([
-    imageData(form, "cnicFront"),
-    imageData(form, "cnicBack"),
-  ]);
-  if (cnicFront.tooLarge || cnicBack.tooLarge)
-    return error(
-      "FILE_TOO_LARGE",
-      cnicFront.tooLarge ? cnicFront.error : cnicBack.error,
-      413,
-    );
-  if (cnicFront.error) fields.cnicFront = cnicFront.error;
-  if (cnicBack.error) fields.cnicBack = cnicBack.error;
   if (Object.keys(fields).length)
     return error(
       "VALIDATION",
@@ -142,14 +95,31 @@ export async function POST(request) {
 
   try {
     const existing = await prisma.agencyApplication.findFirst({
-      where: { userId: user.id, status: "PENDING" },
-      select: { publicId: true },
+      where: { userId: user.id, status: { in: ["PENDING", "APPROVED"] } },
+      select: { publicId: true, status: true },
     });
     if (existing)
       return error(
-        "ALREADY_APPLIED",
-        "You already have a pending application.",
+        existing.status === "APPROVED" ? "ALREADY_HAS_AGENCY" : "ALREADY_APPLIED",
+        existing.status === "APPROVED"
+          ? "You already have an approved agency application."
+          : "You already have a pending application.",
         409,
+      );
+
+    const rejectedAttempts = await prisma.agencyApplication.count({
+      where: {
+        userId: user.id,
+        status: "REJECTED",
+        bdCode: { equals: bdCode, mode: "insensitive" },
+      },
+    });
+    if (rejectedAttempts >= 3)
+      return error(
+        "ADMIN_ID_ATTEMPT_LIMIT_REACHED",
+        "You cannot apply again with this Admin ID after three rejected applications. Use a different Admin ID.",
+        409,
+        { bdCode: "The three-application limit for this Admin ID has been reached." },
       );
 
     const publicId = `AGA-${crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
@@ -163,10 +133,6 @@ export async function POST(request) {
           whatsapp,
           bdCode,
           country: user.country,
-          cnicFrontData: cnicFront.bytes,
-          cnicFrontMime: cnicFront.mime,
-          cnicBackData: cnicBack.bytes,
-          cnicBackMime: cnicBack.mime,
         },
         select: { publicId: true, status: true },
       });
@@ -194,6 +160,7 @@ export async function POST(request) {
         data: {
           applicationId: application.publicId,
           status: application.status,
+          attemptsRemainingForAdminId: Math.max(0, 2 - rejectedAttempts),
         },
       },
       201,

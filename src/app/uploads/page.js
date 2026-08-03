@@ -1,24 +1,10 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "../../../auth";
 import FeatureSearch from "../components/feature-search";
 import UploadTabs from "./upload-tabs";
 import { prisma } from "../../lib/prisma";
 import { serializeUploadAsset } from "../../lib/upload-assets";
-import BrandLogo from "../components/brand-logo";
-
-const nav = [
-  ["Overview", "/home"],
-  ["Users / Senders", "/users"],
-  ["Host Management", "/talents"],
-  ["Agency Management", "/agencies"],
-  ["Rules & Profit Split", "/platform-rules"],
-  ["Uploads", "/uploads"],
-  ["Audit Logs", "/audit-logs"],
-  ["Events Management", "/events-login"],
-  ["Live streams", "#"],
-  ["Reports", "#"],
-];
+import PortalSidebar from "../components/portal-sidebar";
 
 export default async function UploadsPage() {
   const session = await auth();
@@ -70,25 +56,7 @@ export default async function UploadsPage() {
 
   return (
     <main className="min-h-screen bg-[#f4f8f7] text-[#142c2a]">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-[#092f2d] px-5 py-7 text-white lg:flex">
-        <Link href="/home" className="px-2"><BrandLogo light compact priority/></Link>
-        <nav className="mt-12 space-y-1">
-          {nav.map(([label, href]) => (
-            <Link
-              key={label}
-              href={href}
-              className={`block rounded-xl px-4 py-3 text-sm ${href === "/uploads" ? "bg-white/10 font-semibold text-[#62e0d0]" : "text-[#a9c5c1] hover:bg-white/5 hover:text-white"}`}
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
-        <div className="mt-auto border-t border-white/10 pt-5 text-xs text-[#82a6a1]">
-          Streamline Admin
-          <br />
-          Control center
-        </div>
-      </aside>
+      <PortalSidebar />
       <section className="lg:pl-64">
         <header className="flex h-20 items-center gap-6 border-b border-[#dfe9e7] bg-white px-6 md:px-10">
           <div className="shrink-0">
