@@ -6,6 +6,9 @@ import {
   requireMobileUser,
 } from "@/lib/mobile-api";
 import { coinsForShare, getProfitSplitRule } from "@/lib/profit-rules";
+import { emitToAudioRoom, emitToUser } from "@/lib/realtime";
+import { createPublicDisplayAssetUrl } from "@/lib/upload-assets";
+import { requestOrigin } from "@/lib/user-perks";
 
 export function OPTIONS() {
   return mobileOptions();
@@ -16,25 +19,18 @@ export async function POST(request) {
     const sessionUser = await requireMobileUser(request);
     const body = await request.json();
     const recipientId = String(body?.recipientId ?? "").trim();
-    const giftName = String(body?.giftName ?? "").trim().slice(0, 100);
+    const giftId = String(body?.giftId ?? "").trim();
     const roomId = String(body?.roomId ?? "").trim().slice(0, 120) || null;
     const quantity = Number(body?.quantity ?? 1);
-    let grossCoins;
-    try {
-      grossCoins = BigInt(String(body?.coinValue ?? ""));
-    } catch {
-      grossCoins = 0n;
-    }
     if (
       !recipientId ||
-      !giftName ||
-      grossCoins <= 0n ||
+      !giftId ||
       !Number.isInteger(quantity) ||
       quantity < 1 ||
       quantity > 999
     ) {
       const error = new Error(
-        "recipientId, giftName, a positive coinValue, and a valid quantity are required.",
+        "recipientId, giftId, and a quantity between 1 and 999 are required.",
       );
       error.code = "VALIDATION_ERROR";
       throw error;
@@ -45,19 +41,53 @@ export async function POST(request) {
       throw error;
     }
 
-    const [recipientUser, talent, policy] = await Promise.all([
+    const [giftAsset, recipientUser, talent, policy, room] = await Promise.all([
+      prisma.uploadAsset.findFirst({
+        where: {
+          publicId: giftId,
+          category: "GIFTS",
+          active: true,
+          giftTier: { in: ["CLASSIC", "PREMIUM", "VIP"] },
+          coinPrice: { gt: 0n },
+        },
+        select: {
+          id: true,
+          publicId: true,
+          name: true,
+          giftTier: true,
+          mimeType: true,
+          coinPrice: true,
+        },
+      }),
       prisma.user.findFirst({
         where: { publicId: recipientId, deletedAt: null },
-        select: { id: true, publicId: true, name: true, role: true, agencyId: true },
+        select: { id: true, publicId: true, name: true, appRoles: true, agencyId: true },
       }),
       prisma.talent.findUnique({
         where: { publicId: recipientId },
         select: { id: true, publicId: true, displayName: true, agencyId: true },
       }),
       getProfitSplitRule(),
+      roomId
+        ? prisma.audioRoom.findFirst({
+            where: { roomId, status: "LIVE" },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
     ]);
+    if (!giftAsset) {
+      const error = new Error("The selected gift is unavailable.");
+      error.code = "GIFT_NOT_FOUND";
+      throw error;
+    }
     if (!recipientUser && !talent) throw new Error("USER_NOT_FOUND");
-    const isHost = Boolean(talent || recipientUser?.role === "HOST");
+    if (roomId && !room) {
+      const error = new Error("The selected audio room is not live.");
+      error.code = "ROOM_NOT_LIVE";
+      throw error;
+    }
+    const grossCoins = giftAsset.coinPrice * BigInt(quantity);
+    const isHost = Boolean(talent || recipientUser?.appRoles.includes("HOST"));
     const agencyId = talent?.agencyId ?? recipientUser?.agencyId ?? null;
     if (isHost && !agencyId) {
       const error = new Error("Hosts must belong to an agency before receiving gifts.");
@@ -93,7 +123,8 @@ export async function POST(request) {
           senderId: sessionUser.id,
           talentId: talent?.id ?? null,
           recipientUserId: recipientUser?.id ?? null,
-          giftName,
+          giftAssetId: giftAsset.id,
+          giftName: giftAsset.name,
           quantity,
           coinValue: grossCoins,
           roomId,
@@ -157,14 +188,51 @@ export async function POST(request) {
           },
         },
       });
-      return { gift, settlement };
+      const sender = await tx.user.findUniqueOrThrow({
+        where: { id: sessionUser.id },
+        select: { coinBalance: true },
+      });
+      return { gift, settlement, sender };
     });
+
+    const mediaUrl = createPublicDisplayAssetUrl(
+      requestOrigin(request),
+      giftAsset.publicId,
+    );
+    const realtimePayload = {
+      success: true,
+      data: {
+        transactionId: result.gift.id,
+        roomId,
+        sender: { id: sessionUser.publicId, name: sessionUser.name },
+        recipientId,
+        gift: {
+          id: giftAsset.publicId,
+          name: giftAsset.name,
+          category: giftAsset.giftTier,
+          mimeType: giftAsset.mimeType,
+          mediaUrl,
+          unitPrice: giftAsset.coinPrice.toString(),
+          quantity,
+          totalCoins: grossCoins.toString(),
+        },
+        createdAt: result.gift.createdAt.toISOString(),
+      },
+    };
+    if (roomId) emitToAudioRoom(roomId, "gift:received", realtimePayload);
+    else emitToUser(recipientId, "gift:received", realtimePayload);
 
     return mobileJson(
       {
         success: true,
         data: {
           transactionId: result.gift.id,
+          giftId: giftAsset.publicId,
+          giftName: giftAsset.name,
+          giftCategory: giftAsset.giftTier,
+          mediaUrl,
+          unitPrice: giftAsset.coinPrice.toString(),
+          quantity,
           recipientId,
           recipientType: result.settlement.recipientType,
           grossCoins: result.settlement.grossCoins.toString(),
@@ -173,6 +241,7 @@ export async function POST(request) {
           companyCoins: result.settlement.companyCoins.toString(),
           reusableCoins: result.settlement.reusableCoins.toString(),
           policyVersion: result.settlement.policyVersion,
+          senderCoinBalance: result.sender.coinBalance.toString(),
           createdAt: result.gift.createdAt.toISOString(),
         },
       },
@@ -188,6 +257,11 @@ export async function POST(request) {
       return mobileJson(
         { success: false, error: { code: error.code, message: error.message } },
         409,
+      );
+    if (error?.code === "GIFT_NOT_FOUND" || error?.code === "ROOM_NOT_LIVE")
+      return mobileJson(
+        { success: false, error: { code: error.code, message: error.message } },
+        404,
       );
     console.error("Gift settlement failed", error);
     return mobileApiError(error, "GIFT_SEND_FAILED");

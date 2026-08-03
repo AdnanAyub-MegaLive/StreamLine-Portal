@@ -28,20 +28,39 @@ amount.
 
 ## Send and settle a gift
 
+First load the consumable gift catalog:
+
+```http
+GET /api/gifts/catalog
+Authorization: Bearer <sessionToken>
+```
+
+The response contains `Classic`, `Premium`, and `VIP` category groups plus a
+flat `gifts` list. Each gift contains `id`, `name`, `details`, `tags`,
+`category`, `mimeType`, `coinPrice`, and a signed `mediaUrl`. The picker should
+render the media according to `mimeType`, let the user choose a quantity from
+1 to 999, show `coinPrice × quantity`, and require explicit confirmation.
+
 `POST /api/gifts/send` requires a mobile bearer session.
 
 ```json
 {
   "recipientId": "USR-2048",
-  "giftName": "Rose",
-  "quantity": 1,
-  "coinValue": "1000",
+  "giftId": "AST-68A379FB4345",
+  "quantity": 5,
   "roomId": "ROOM-7F30A921B8C4"
 }
 ```
 
-`coinValue` is the total value deducted for the transaction. Send it as an
-integer string so large balances remain precise in JavaScript.
+The backend loads the active gift by `giftId` and authoritatively calculates
+`coinPrice × quantity`. Client-provided names or coin totals are not accepted,
+preventing price manipulation. `roomId` is optional for gifts sent outside a
+room; when supplied, it must refer to a live room.
+
+After settlement, the backend emits `gift:received` to the audio-room channel
+(or directly to the recipient when no room is supplied). Its payload contains
+the sender, recipient, transaction ID, quantity, unit/total price, MIME type,
+and signed media URL so every client can play the animation immediately.
 
 Host recipients must have role `HOST` and an active agency. Their settlement
 is credited to a salary balance and the agency commission balance. Normal
@@ -52,8 +71,9 @@ The success response includes `grossCoins`, `hostSalaryCoins`, `agencyCoins`,
 `companyCoins`, `reusableCoins`, and `policyVersion`, all derived and committed
 atomically by the backend.
 
-Possible business errors include `INSUFFICIENT_COINS`,
-`HOST_AGENCY_REQUIRED`, `USER_NOT_FOUND`, and `VALIDATION_ERROR`.
+Possible business errors include `INSUFFICIENT_COINS`, `GIFT_NOT_FOUND`,
+`ROOM_NOT_LIVE`, `HOST_AGENCY_REQUIRED`, `USER_NOT_FOUND`, and
+`VALIDATION_ERROR`.
 
 ## Administration
 

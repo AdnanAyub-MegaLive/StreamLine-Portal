@@ -241,6 +241,8 @@ function PreviewCard({ item, eager, onManage, onDelete }) {
               ? item.actionUrl
                 ? "Marketing link configured"
                 : "Destination link missing"
+              : item.category === "GIFTS"
+                ? "Consumable gift catalog"
               : activeGrants.length
               ? `Granted to ${activeGrants.length} user${activeGrants.length === 1 ? "" : "s"}`
               : item.isGlobal
@@ -313,6 +315,7 @@ function DeleteAssetModal({asset,deleting,error,onClose,onDelete}) {
 
 function AssetManager({ asset, users, saving, error, onClose, onSave }) {
   const isBanner = asset.category === "BANNERS";
+  const isGift = asset.category === "GIFTS";
   const [title, setTitle] = useState(asset.name);
   const [details, setDetails] = useState(asset.details ?? "");
   const [tags, setTags] = useState((asset.tags ?? []).join(", "));
@@ -322,6 +325,7 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
   );
   const [storeVisible, setStoreVisible] = useState(asset.storeVisible ?? false);
   const [coinPrice, setCoinPrice] = useState(asset.coinPrice ?? "0");
+  const [giftTier, setGiftTier] = useState(asset.giftTier ?? "CLASSIC");
   const [minimumVipLevel, setMinimumVipLevel] = useState(
     asset.minimumVipLevel ?? 1,
   );
@@ -366,6 +370,8 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
       tags: parseTags(tags),
       ...(isBanner
         ? { actionUrl: actionUrl.trim() }
+        : isGift
+          ? { giftTier, coinPrice, distribution: "STORE", storeVisible: false }
         : {
             assignmentGrants: grants,
             isRoomBackground,
@@ -464,7 +470,15 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
               </Field>
             )}
           </div>
-          {!isBanner && (
+          {isGift && (
+            <GiftCatalogSettings
+              giftTier={giftTier}
+              onGiftTier={setGiftTier}
+              coinPrice={coinPrice}
+              onCoinPrice={setCoinPrice}
+            />
+          )}
+          {!isBanner && !isGift && (
             <DistributionSettings
               distribution={distribution}
               onDistribution={setDistribution}
@@ -480,7 +494,7 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
               onDefaultDuration={setDefaultGrantDuration}
             />
           )}
-          {!isBanner && <UserPanel
+          {!isBanner && !isGift && <UserPanel
             title="Granted to Users"
             query={grantedQuery}
             onQuery={setGrantedQuery}
@@ -515,11 +529,11 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
               );
             })}
           </UserPanel>}
-          {!isBanner && <AssignmentPeriod
+          {!isBanner && !isGift && <AssignmentPeriod
             value={durationMinutes}
             onChange={setDurationMinutes}
           />}
-          {!isBanner && <UserPanel
+          {!isBanner && !isGift && <UserPanel
             title="Assign to Users"
             query={assignQuery}
             onQuery={setAssignQuery}
@@ -550,7 +564,7 @@ function AssetManager({ asset, users, saving, error, onClose, onSave }) {
               />
             ))}
           </UserPanel>}
-          {!isBanner && <label className="flex items-center gap-3 rounded-xl border border-[#d7e5e2] bg-[#f8fbfa] p-4">
+          {!isBanner && !isGift && <label className="flex items-center gap-3 rounded-xl border border-[#d7e5e2] bg-[#f8fbfa] p-4">
             <input
               type="checkbox"
               checked={isRoomBackground}
@@ -647,6 +661,7 @@ function UserRow({ user, meta, action, tone, onAction }) {
 
 function UploadModal({ active, users, onClose, onCreated }) {
   const isBanner = active === "Banners";
+  const isGift = active === "Gifts";
   const [name, setName] = useState("");
   const [details, setDetails] = useState("");
   const [tags, setTags] = useState("");
@@ -654,6 +669,7 @@ function UploadModal({ active, users, onClose, onCreated }) {
   const [distribution, setDistribution] = useState("STORE");
   const [storeVisible, setStoreVisible] = useState(true);
   const [coinPrice, setCoinPrice] = useState("0");
+  const [giftTier, setGiftTier] = useState("CLASSIC");
   const [minimumVipLevel, setMinimumVipLevel] = useState(1);
   const [minimumRecharge, setMinimumRecharge] = useState("1");
   const [defaultGrantDuration, setDefaultGrantDuration] = useState(null);
@@ -701,7 +717,12 @@ function UploadModal({ active, users, onClose, onCreated }) {
     form.set("category", categories[active]);
     form.set("file", file);
     form.set("actionUrl", actionUrl.trim());
-    if (!isBanner) {
+    if (isGift) {
+      form.set("giftTier", giftTier);
+      form.set("coinPrice", String(coinPrice));
+      form.set("distribution", "STORE");
+      form.set("storeVisible", "false");
+    } else if (!isBanner) {
       form.set("assignedUserIds", JSON.stringify(assignedUserIds));
       form.set(
         "assignmentDurationMinutes",
@@ -840,7 +861,15 @@ function UploadModal({ active, users, onClose, onCreated }) {
               </p>
             </div>
           )}
-          {!isBanner && (
+          {isGift && (
+            <GiftCatalogSettings
+              giftTier={giftTier}
+              onGiftTier={setGiftTier}
+              coinPrice={coinPrice}
+              onCoinPrice={setCoinPrice}
+            />
+          )}
+          {!isBanner && !isGift && (
             <DistributionSettings
               distribution={distribution}
               onDistribution={setDistribution}
@@ -856,11 +885,11 @@ function UploadModal({ active, users, onClose, onCreated }) {
               onDefaultDuration={setDefaultGrantDuration}
             />
           )}
-          {!isBanner && <AssignmentPeriod
+          {!isBanner && !isGift && <AssignmentPeriod
             value={durationMinutes}
             onChange={setDurationMinutes}
           />}
-          {!isBanner && <UserPanel
+          {!isBanner && !isGift && <UserPanel
             title="Assign to Users"
             query={userQuery}
             onQuery={setUserQuery}
@@ -878,7 +907,7 @@ function UploadModal({ active, users, onClose, onCreated }) {
               />
             ))}
           </UserPanel>}
-          {!isBanner && assignedUserIds.length > 0 && (
+          {!isBanner && !isGift && assignedUserIds.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {assignedUserIds.map((id) => {
                 const user = users.find((item) => item.id === id);
@@ -899,7 +928,7 @@ function UploadModal({ active, users, onClose, onCreated }) {
               })}
             </div>
           )}
-          {!isBanner && <label className="flex items-center gap-3 rounded-xl border border-[#dce8e5] bg-[#f8fbfa] p-4">
+          {!isBanner && !isGift && <label className="flex items-center gap-3 rounded-xl border border-[#dce8e5] bg-[#f8fbfa] p-4">
             <input
               type="checkbox"
               checked={isRoomBackground}
@@ -1006,6 +1035,44 @@ function AssignmentPeriod({ value, onChange }) {
         original expiry.
       </p>
     </div>
+  );
+}
+
+function GiftCatalogSettings({ giftTier, onGiftTier, coinPrice, onCoinPrice }) {
+  return (
+    <fieldset className="rounded-xl border border-[#cadbd7] bg-[#f8fbfa] p-4">
+      <legend className="px-2 text-xs font-bold text-[#294a45]">
+        Gift catalog settings
+      </legend>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Gift category">
+          <select
+            value={giftTier}
+            onChange={(event) => onGiftTier(event.target.value)}
+            className={inputClass}
+          >
+            <option value="CLASSIC">Classic</option>
+            <option value="PREMIUM">Premium</option>
+            <option value="VIP">VIP</option>
+          </select>
+        </Field>
+        <Field label="Unit price (coins)">
+          <input
+            type="number"
+            min="1"
+            step="1"
+            required
+            value={coinPrice}
+            onChange={(event) => onCoinPrice(event.target.value)}
+            className={inputClass}
+          />
+        </Field>
+      </div>
+      <p className="mt-3 text-[10px] leading-4 text-[#748681]">
+        Gifts are consumable. Users spend this price each time they send one;
+        gifts are never owned, assigned, or equipped.
+      </p>
+    </fieldset>
   );
 }
 
@@ -1201,6 +1268,8 @@ function formatDate(value) {
   return value ? new Date(value).toLocaleString("en-US") : "Never";
 }
 function distributionLabel(item) {
+  if (item.category === "GIFTS")
+    return `${item.giftTier ? displayTier(item.giftTier) : "Gift"} · ${item.coinPrice ?? "0"} coins`;
   if (item.distribution === "STORE")
     return `Store · ${item.coinPrice ?? "0"} coins`;
   if (item.distribution === "VIP")
@@ -1209,6 +1278,12 @@ function distributionLabel(item) {
     return `SVIP · recharge ${item.minimumRecharge ?? ""}`.trim();
   if (item.distribution === "ACTIVITY") return "Activity reward";
   return "Super Admin grant";
+}
+
+function displayTier(value) {
+  return String(value)
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 const inputClass =
   "h-11 w-full rounded-lg border border-[#cededb] bg-white px-4 text-sm outline-none transition placeholder:text-[#9aaba7] focus:border-[#2ca89c] focus:ring-2 focus:ring-[#2ca89c]/10";

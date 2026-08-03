@@ -413,6 +413,7 @@ model UploadAsset {
   distribution                String                  @default("MANUAL")
   storeVisible                Boolean                 @default(false)
   coinPrice                   BigInt?
+  giftTier                    String?
   minimumVipLevel             Int?
   minimumRecharge             BigInt?
   defaultGrantDurationMinutes Int?
@@ -422,6 +423,7 @@ model UploadAsset {
   assignments                 UploadAssetAssignment[]
   equippedBy                  UserEquippedProp[]
   purchases                   PropPurchase[]
+  giftTransactions            GiftTransaction[]
 
   @@index([category, createdAt])
   @@index([isRoomBackground, createdAt])
@@ -569,6 +571,7 @@ model GiftTransaction {
   senderId        String
   talentId        String?
   recipientUserId String?
+  giftAssetId     String?
   giftName        String
   quantity        Int             @default(1)
   coinValue       BigInt
@@ -577,11 +580,13 @@ model GiftTransaction {
   sender          User            @relation("GiftSender", fields: [senderId], references: [id], onDelete: Restrict)
   recipientUser   User?           @relation("GiftRecipientUser", fields: [recipientUserId], references: [id], onDelete: Restrict)
   talent          Talent?         @relation(fields: [talentId], references: [id], onDelete: Restrict)
+  giftAsset       UploadAsset?    @relation(fields: [giftAssetId], references: [id], onDelete: SetNull)
   settlement      GiftSettlement?
 
   @@index([senderId, createdAt])
   @@index([talentId, createdAt])
   @@index([recipientUserId, createdAt])
+  @@index([giftAssetId, createdAt])
 }
 
 model GiftSettlement {

@@ -41,6 +41,7 @@ export function serializeUploadAsset(asset,url) {
     distribution:asset.distribution??"MANUAL",
     storeVisible:Boolean(asset.storeVisible),
     coinPrice:asset.coinPrice?.toString()??null,
+    giftTier:asset.giftTier??null,
     minimumVipLevel:asset.minimumVipLevel??null,
     minimumRecharge:asset.minimumRecharge?.toString()??null,
     defaultGrantDurationMinutes:asset.defaultGrantDurationMinutes??null,
