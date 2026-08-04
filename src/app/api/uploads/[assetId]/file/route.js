@@ -13,6 +13,7 @@ const publicDisplayCategories = new Set([
   "ENTRANCES",
   "TAIL_LIGHTS",
   "RIDES",
+  "GIFTS",
 ]);
 
 export async function GET(request, { params }) {
@@ -26,6 +27,7 @@ export async function GET(request, { params }) {
       mimeType: true,
       category: true,
       isGlobal: true,
+      storeVisible: true,
       assignments: {
         where: { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
         select: { userId: true },
@@ -73,6 +75,7 @@ export async function GET(request, { params }) {
         user.deletedAt ||
         user.sessionVersion !== payload.sessionVersion ||
         (!asset.isGlobal &&
+          !asset.storeVisible &&
           !asset.assignments.some(
             (assignment) => assignment.userId === user.id,
           ))
