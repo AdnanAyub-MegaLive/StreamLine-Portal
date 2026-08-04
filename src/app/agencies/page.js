@@ -8,7 +8,7 @@ import { prisma } from "../../lib/prisma";
 export default async function AgenciesPage() {
   const session = await auth();
   if (!session?.user) redirect("/");
-  const records=await prisma.agencyApplication.findMany({
+  const [records, joinRecords]=await Promise.all([prisma.agencyApplication.findMany({
     select:{
       publicId:true,
       agencyName:true,
@@ -29,7 +29,7 @@ export default async function AgenciesPage() {
     },
     orderBy:{createdAt:"desc"},
     take:500,
-  });
+  }),prisma.agencyJoinRequest.findMany({select:{publicId:true,status:true,createdAt:true,updatedAt:true,reviewedAt:true,reviewNote:true,reviewedBy:{select:{name:true,email:true}},user:{select:{publicId:true,name:true,phone:true,profileImage:true}},agency:{select:{publicId:true,name:true,status:true}}},orderBy:{createdAt:"desc"},take:500})]);
   const applications=records.map((application)=>({
     id:application.publicId,
     agencyName:application.agencyName,
@@ -53,6 +53,7 @@ export default async function AgenciesPage() {
     cnicFrontUrl:application.cnicFrontMime?`/api/agencies/applications/${application.publicId}/cnic/front`:null,
     cnicBackUrl:application.cnicBackMime?`/api/agencies/applications/${application.publicId}/cnic/back`:null,
   }));
+  const joinRequests=joinRecords.map((request)=>({id:request.publicId,status:request.status,submittedAt:request.createdAt.toISOString(),updatedAt:request.updatedAt.toISOString(),reviewedAt:request.reviewedAt?.toISOString()??null,reviewNote:request.reviewNote,reviewedBy:request.reviewedBy,applicant:{id:request.user.publicId,name:request.user.name,phone:request.user.phone,profileImage:request.user.profileImage},agency:{id:request.agency.publicId,name:request.agency.name,status:request.agency.status}}));
 
   return (
     <main className="min-h-screen bg-[#f4f8f7] text-[#142c2a]">
@@ -91,7 +92,7 @@ export default async function AgenciesPage() {
               salary activity.
             </p>
           </div>
-          <AgencyTabs applications={applications}/>
+          <AgencyTabs applications={applications} joinRequests={joinRequests}/>
         </div>
       </section>
     </main>

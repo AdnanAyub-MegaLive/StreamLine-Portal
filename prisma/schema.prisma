@@ -85,6 +85,7 @@ model Admin {
   salaryChanges              SalaryHistory[]
   auditLogs                  AuditLog[]
   agencyApplicationsReviewed AgencyApplication[]
+  agencyJoinRequestsReviewed AgencyJoinRequest[]
 }
 
 model AuditLog {
@@ -145,6 +146,8 @@ model User {
   equippedProps            UserEquippedProp[]
   propPurchases            PropPurchase[]
   agencyApplications       AgencyApplication[]
+  agencyJoinRequests       AgencyJoinRequest[]
+  posts                    Post[]
   conversationParticipants ConversationParticipant[]
   sentMessages             Message[]
   notifications            Notification[]
@@ -174,6 +177,7 @@ model Agency {
   userHosts             User[]              @relation("UserAgency")
   talents               Talent[]
   applications          AgencyApplication[]
+  joinRequests          AgencyJoinRequest[]
   settlements           GiftSettlement[]
 
   @@index([status, createdAt])
@@ -506,6 +510,41 @@ model AgencyApplication {
   @@index([userId])
   @@index([userId, bdCode, status])
   @@index([reviewedById, reviewedAt])
+}
+
+model AgencyJoinRequest {
+  id           String    @id @default(cuid())
+  publicId     String    @unique
+  userId       String
+  agencyId     String
+  status       String    @default("PENDING")
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agency       Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  reviewedBy   Admin?    @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([agencyId, createdAt])
+}
+
+model Post {
+  id          String   @id @default(cuid())
+  publicId    String   @unique
+  authorId    String
+  description String?
+  imageUrl    String?
+  imageData   Bytes?
+  imageMime   String?
+  createdAt   DateTime @default(now())
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([authorId, createdAt])
 }
 
 model Talent {

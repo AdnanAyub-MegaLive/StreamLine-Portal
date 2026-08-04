@@ -11,6 +11,7 @@ const tabs = [
   "Monthly Salary",
   "Host Salaries",
   "Agency Apply",
+  "Join Requests",
 ];
 const agencies = [
   {
@@ -85,7 +86,7 @@ const topTalents = [
   },
 ];
 
-export default function AgencyTabs({ applications = [] }) {
+export default function AgencyTabs({ applications = [], joinRequests = [] }) {
   const searchParams = useSearchParams();
   const requested = searchParams.get("tab");
   const [active, setActive] = useState(
@@ -117,7 +118,7 @@ export default function AgencyTabs({ applications = [] }) {
         {active === "Agency Home" ? (
           <AgencyHome applications={applications} />
         ) : (
-          <Module tab={active} applications={applications} />
+          <Module tab={active} applications={applications} joinRequests={joinRequests} />
         )}
       </section>
     </>
@@ -238,7 +239,7 @@ function TalentTable() {
   );
 }
 
-function Module({ tab, applications }) {
+function Module({ tab, applications, joinRequests }) {
   const copy = {
     "Agency Tasks": [
       "Agency tasks",
@@ -256,9 +257,15 @@ function Module({ tab, applications }) {
       "Agency applications",
       "Review applications to create or register a new agency.",
     ],
+    "Join Requests": [
+      "Agency join requests",
+      "Review users requesting to become hosts under an existing agency.",
+    ],
   }[tab];
   if (tab === "Agency Apply")
     return <AgencyApplications applications={applications} />;
+  if (tab === "Join Requests")
+    return <AgencyJoinRequests initialRequests={joinRequests} />;
   return (
     <div className="rounded-2xl border border-[#dce8e5] bg-white p-8">
       <span className="grid h-12 w-12 place-items-center rounded-xl bg-[#e4f6f3] text-lg font-bold text-[#087f74]">
@@ -269,6 +276,33 @@ function Module({ tab, applications }) {
       <div className="mt-8 rounded-xl border border-dashed border-[#cbded9] bg-[#f8fbfa] px-6 py-12 text-center text-xs text-[#81938e]">
         This module is ready for its database workflow and management actions.
       </div>
+    </div>
+  );
+}
+
+function AgencyJoinRequests({ initialRequests }) {
+  const [requests, setRequests] = useState(initialRequests);
+  const [selected, setSelected] = useState(null);
+  const [decision, setDecision] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  async function review(event) {
+    event.preventDefault();
+    setSaving(true); setError("");
+    try {
+      const response = await fetch(`/api/agencies/join-requests/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision, note }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error?.message || "Review failed.");
+      setRequests((current) => current.map((item) => item.id === selected.id ? { ...item, ...result.data } : item));
+      setSelected(null); setDecision(""); setNote("");
+    } catch (reviewError) { setError(reviewError.message); } finally { setSaving(false); }
+  }
+  return (
+    <div className="rounded-2xl border border-[#dce8e5] bg-white">
+      <div className="border-b px-5 py-4"><h3 className="font-bold">Agency join requests</h3><p className="mt-1 text-xs text-[#71847f]">Approve a request to link the user and grant the Host role.</p></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-xs"><thead className="bg-[#f8fbfa] text-[10px] uppercase text-[#7b8e89]"><tr><th className="px-5 py-3">Applicant</th><th>Agency</th><th>Requested</th><th>Status</th><th className="pr-5 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#edf2f1]">{requests.map((item)=><tr key={item.id}><td className="px-5 py-4"><Link href={`/users/${encodeURIComponent(item.applicant.id)}`} target="_blank" className="font-bold text-[#087f74]">{item.applicant.name}</Link><p className="mt-1 font-mono text-[9px]">{item.applicant.id} · {item.applicant.phone}</p></td><td><strong>{item.agency.name}</strong><p className="mt-1 font-mono text-[9px]">{item.agency.id}</p></td><td>{formatDate(item.submittedAt)}</td><td><ApplicationStatus value={item.status}/></td><td className="pr-5 text-right"><button type="button" onClick={()=>{setSelected(item);setDecision("");setNote("");setError("");}} className="rounded-lg border border-[#bddbd6] px-3 py-2 font-bold text-[#087f74]">{item.status === "PENDING" ? "Review" : "View"}</button></td></tr>)}</tbody></table>{!requests.length&&<p className="py-12 text-center text-xs text-[#81938e]">No agency join requests yet.</p>}</div>
+      {selected&&<div className="fixed inset-0 z-50 grid place-items-center bg-[#071f1d]/60 p-4"><form onSubmit={review} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><h3 className="text-lg font-bold">{selected.applicant.name}</h3><p className="mt-1 text-xs text-[#71847f]">Request to join {selected.agency.name}</p>{selected.status === "PENDING"?<><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={()=>setDecision("APPROVED")} className={`rounded-lg border p-3 text-xs font-bold ${decision==="APPROVED"?"border-emerald-600 bg-emerald-50 text-emerald-700":""}`}>Approve</button><button type="button" onClick={()=>setDecision("REJECTED")} className={`rounded-lg border p-3 text-xs font-bold ${decision==="REJECTED"?"border-rose-600 bg-rose-50 text-rose-700":""}`}>Reject</button></div><textarea value={note} onChange={(event)=>setNote(event.target.value)} required={decision==="REJECTED"} placeholder={decision==="REJECTED"?"Rejection reason (required)":"Optional review note"} rows={3} className="mt-4 w-full rounded-lg border border-[#dce8e5] p-3 text-xs"/>{error&&<p className="mt-3 text-xs font-semibold text-rose-600">{error}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" onClick={()=>setSelected(null)} className="rounded-lg border px-4 py-2 text-xs font-bold">Cancel</button><button disabled={!decision||saving} className="rounded-lg bg-[#087f74] px-5 py-2 text-xs font-bold text-white disabled:opacity-40">{saving?"Saving…":"Confirm"}</button></div></>:<><p className="mt-5 rounded-lg bg-[#f7faf9] p-3 text-xs">{selected.reviewNote||"No review note."}</p><button type="button" onClick={()=>setSelected(null)} className="mt-5 w-full rounded-lg border px-4 py-2 text-xs font-bold">Close</button></>}</form></div>}
     </div>
   );
 }
