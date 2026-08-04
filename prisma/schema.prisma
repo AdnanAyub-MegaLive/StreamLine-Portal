@@ -171,6 +171,7 @@ model Agency {
   ownerUserId           String?             @unique
   status                String              @default("ACTIVE")
   commissionCoinBalance BigInt              @default(0)
+  monthlyTargetCoins    BigInt              @default(0)
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
   owner                 User?               @relation("AgencyOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
